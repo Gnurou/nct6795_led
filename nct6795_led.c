@@ -11,6 +11,9 @@
 
 /* Copy/paste from drivers/hwmon/nct6795.c */
 
+#define NCT6775_LD_12		0x12
+
+#define SIO_REG_LDSEL		0x07	/* Logical device select */
 #define SIO_REG_DEVID		0x20	/* Device ID (2 bytes) */
 
 static inline void
@@ -25,6 +28,13 @@ superio_inb(int ioreg, int reg)
 {
 	outb(reg, ioreg);
 	return inb(ioreg + 1);
+}
+
+static inline void
+superio_select(int ioreg, int ld)
+{
+	outb(SIO_REG_LDSEL, ioreg);
+	outb(ld, ioreg + 1);
 }
 
 static inline int
@@ -122,7 +132,7 @@ static int nct6795_led_program(struct nct6795_led *led)
 	*/
 
 	// Select the 0x12th bank (RGB)
-	superio_outb(base, 0x07, 0x12);
+	superio_select(base, NCT6775_LD_12);
 
 	printk("Programming: %d %d %d\n", led->cdev[RED].brightness,
 	       led->cdev[GREEN].brightness, led->cdev[BLUE].brightness);
