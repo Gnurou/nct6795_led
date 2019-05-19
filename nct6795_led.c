@@ -104,12 +104,6 @@ static int nct6795_led_detect(struct device *dev)
 		goto err;
 	}
 
-	// Check if RGB control enabled?
-	val = superio_inb(base, 0xe0);
-	if ((val & 0xe0) != 0xe0) {
-		superio_outb(base, 0xe0, 0xe0 | (val & !0xe0));
-	}
-
 err:
 	superio_exit(base);
 	return err;
@@ -119,10 +113,17 @@ static int nct6795_led_program(struct nct6795_led *led)
 {
 	int err;
 	int i;
+	u16 val;
 
 	err = superio_enter(base);
 	if (err)
 		return err;
+
+	// Check if RGB control enabled?
+	val = superio_inb(base, 0xe0);
+	if ((val & 0xe0) != 0xe0) {
+		superio_outb(base, 0xe0, 0xe0 | (val & !0xe0));
+	}
 
 	// Without this pulsing does not work ?
 	/*
@@ -145,6 +146,7 @@ static int nct6795_led_program(struct nct6795_led *led)
 		superio_outb(base, 0xf8 + i, led->cdev[BLUE].brightness);
 
 	superio_exit(base);
+
 	return 0;
 }
 
