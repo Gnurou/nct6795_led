@@ -9,7 +9,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
-/* Copy/paste from drivers/hwmon/nct6795.c */
+/* Copy/paste from drivers/hwmon/nct6775.c */
 
 #define NCT6775_LD_12		0x12
 
@@ -61,7 +61,7 @@ superio_exit(int ioreg)
 	release_region(ioreg, 2);
 }
 
-/* End copy/paste from drivers/hwmon/nct6795.c */
+/* End copy/paste from drivers/hwmon/nct6775.c */
 
 
 enum { RED = 0, GREEN, BLUE };
