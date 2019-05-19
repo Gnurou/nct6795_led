@@ -207,20 +207,44 @@ static int nct6795_led_probe(struct platform_device *pdev)
 		cdev->brightness = init_vals[i];
 		cdev->max_brightness = LED_FULL;
 		cdev->brightness_set = brightness_set[i];
-		cdev->flags = LED_CORE_SUSPENDRESUME;
 		err = devm_led_classdev_register(&pdev->dev, cdev);
 		if (err)
 			return err;
 	}
+
+	dev_set_drvdata(&pdev->dev, led);
 
 	nct6795_led_program(led);
 
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int nct6795_led_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int nct6795_led_resume(struct device *dev)
+{
+	struct nct6795_led *led =dev_get_drvdata(dev);
+	int ret;
+
+	// For some reason this needs to be done twice??
+	ret = nct6795_led_program(led);
+	if (ret)
+		return ret;
+	return nct6795_led_program(led);
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(nct_6795_led_pm_ops, nct6795_led_suspend,
+			 nct6795_led_resume);
+
 static struct platform_driver nct6795_led_driver = {
 	.driver = {
 		.name = "nct6795_led",
+		.pm = &nct_6795_led_pm_ops,
 	},
 	.probe = nct6795_led_probe,
 };
