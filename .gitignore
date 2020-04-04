@@ -6,3 +6,6 @@
 Module.symvers
 modules.order
 *.kdev4
+compile_commands.json
+*-workspace
+*.mod
