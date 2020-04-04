@@ -10,3 +10,6 @@ clean:
 install:
 	mkdir -p /lib/modules/$(KERNEL_VERSION)/extramodules/
 	cp nct6795_led.ko /lib/modules/$(KERNEL_VERSION)/extramodules/
+
+compile_commands.json: clean
+	bear make
