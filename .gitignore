@@ -9,3 +9,5 @@ modules.order
 compile_commands.json
 *-workspace
 *.mod
+*.d
+.clangd
