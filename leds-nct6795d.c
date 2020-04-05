@@ -176,9 +176,9 @@ static int nct6795d_led_commit(const struct nct6795d_led *led)
 	/* Select the 0x12th bank (RGB) */
 	superio_select(led->base_port, NCT6775_LD_12);
 
-	dev_info(led->dev, "setting values: R=%d G=%d B=%d\n",
-		 led->cdev[RED].brightness, led->cdev[GREEN].brightness,
-		 led->cdev[BLUE].brightness);
+	dev_dbg(led->dev, "setting values: R=%d G=%d B=%d\n",
+		led->cdev[RED].brightness, led->cdev[GREEN].brightness,
+		led->cdev[BLUE].brightness);
 
 	nct6795d_led_commit_color(led, 0xf0, led->cdev[RED].brightness);
 	nct6795d_led_commit_color(led, 0xf4, led->cdev[GREEN].brightness);
