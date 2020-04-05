@@ -317,8 +317,7 @@ static int __init nct6795d_led_init(void)
 	if (ret)
 		return ret;
 
-	nct6795d_led_pdev =
-		platform_device_alloc(NCT6795D_NAME "_led", base_port);
+	nct6795d_led_pdev = platform_device_alloc(NCT6795D_NAME "_led", 0);
 	if (!nct6795d_led_pdev) {
 		ret = -ENOMEM;
 		goto error_pdev_alloc;
