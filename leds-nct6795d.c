@@ -113,25 +113,25 @@ static const int base = 0x4e;
 
 static int nct6795d_led_detect(struct device *dev)
 {
-	int err;
+	int ret;
 	u16 val;
 
-	err = superio_enter(base);
-	if (err)
-		return err;
+	ret = superio_enter(base);
+	if (ret)
+		return ret;
 
 	val = (superio_inb(base, SIO_REG_DEVID) << 8) |
 	       superio_inb(base, SIO_REG_DEVID + 1);
 
 	if ((val & 0xfff8) != 0xd350) {
 		dev_err(dev, "nct6795d not found!\n");
-		err = -ENXIO;
-		goto err;
+		ret = -ENXIO;
+		goto err_not_found;
 	}
 
-err:
+err_not_found:
 	superio_exit(base);
-	return err;
+	return ret;
 }
 
 static void nct6795d_write_color(size_t index, enum led_brightness brightness) {
@@ -149,12 +149,12 @@ static void nct6795d_write_color(size_t index, enum led_brightness brightness) {
 
 static int nct6795d_led_program(struct nct6795d_led *led)
 {
-	int err;
+	int ret;
 	u16 val;
 
-	err = superio_enter(base);
-	if (err)
-		return err;
+	ret = superio_enter(base);
+	if (ret)
+		return ret;
 
 	/* Check if RGB control enabled */
 	val = superio_inb(base, 0xe0);
@@ -222,12 +222,12 @@ static void (*brightness_set[3])(struct led_classdev *, enum led_brightness) = {
 static int nct6795d_led_probe(struct platform_device *pdev)
 {
 	struct nct6795d_led *led;
-	int err;
+	int ret;
 	int i;
 
-	err = nct6795d_led_detect(&pdev->dev);
-	if (err)
-		return err;
+	ret = nct6795d_led_detect(&pdev->dev);
+	if (ret)
+		return ret;
 
 	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
 	if (!led)
@@ -240,9 +240,9 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 		cdev->brightness = init_vals[i];
 		cdev->max_brightness = 0xf;
 		cdev->brightness_set = brightness_set[i];
-		err = devm_led_classdev_register(&pdev->dev, cdev);
-		if (err)
-			return err;
+		ret = devm_led_classdev_register(&pdev->dev, cdev);
+		if (ret)
+			return ret;
 	}
 
 	dev_set_drvdata(&pdev->dev, led);
@@ -286,27 +286,27 @@ static struct platform_device* nct6795d_led_pdev;
 
 static int __init nct6795d_led_init(void)
 {
-	int err;
+	int ret;
 
-	err = platform_driver_register(&nct6795d_led_driver);
-	if (err)
-		return err;
+	ret = platform_driver_register(&nct6795d_led_driver);
+	if (ret)
+		return ret;
 
 	nct6795d_led_pdev = platform_device_alloc("nct6795d_led", 0);
 	if (!nct6795d_led_pdev) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		goto error_pdev_alloc;
 	}
 
-	err = platform_device_add(nct6795d_led_pdev);
-	if (err)
+	ret = platform_device_add(nct6795d_led_pdev);
+	if (ret)
 		goto error_pdev_alloc;
 
 	return 0;
 
 error_pdev_alloc:
 	platform_driver_unregister(&nct6795d_led_driver);
-	return err;
+	return ret;
 }
 
 static void __exit nct6795d_led_exit(void)
