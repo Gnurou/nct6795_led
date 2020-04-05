@@ -134,10 +134,22 @@ err:
 	return err;
 }
 
+static void nct6795d_write_color(size_t index, enum led_brightness brightness) {
+	int i;
+
+	/*
+	 * The 8 4-bit nibbles represent brightness intensity for each time
+	 * frame. We set them all to the same value.
+	 */
+	brightness = (brightness << 4) | brightness;
+	for (i = 0; i < 4; i++) {
+		superio_outb(base, index + i, brightness);
+	}
+}
+
 static int nct6795d_led_program(struct nct6795d_led *led)
 {
 	int err;
-	int i;
 	u16 val;
 
 	err = superio_enter(base);
@@ -164,12 +176,9 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 		 led->cdev[RED].brightness, led->cdev[GREEN].brightness,
 		 led->cdev[BLUE].brightness);
 
-	for (i = 0; i < 4; i++)
-		superio_outb(base, 0xf0 + i, led->cdev[RED].brightness);
-	for (i = 0; i < 4; i++)
-		superio_outb(base, 0xf4 + i, led->cdev[GREEN].brightness);
-	for (i = 0; i < 4; i++)
-		superio_outb(base, 0xf8 + i, led->cdev[BLUE].brightness);
+	nct6795d_write_color(0xf0, led->cdev[RED].brightness);
+	nct6795d_write_color(0xf4, led->cdev[GREEN].brightness);
+	nct6795d_write_color(0xf8, led->cdev[BLUE].brightness);
 
 	superio_exit(base);
 
@@ -229,7 +238,7 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 
 		cdev->name = led_names[i];
 		cdev->brightness = init_vals[i];
-		cdev->max_brightness = LED_FULL;
+		cdev->max_brightness = 0xf;
 		cdev->brightness_set = brightness_set[i];
 		err = devm_led_classdev_register(&pdev->dev, cdev);
 		if (err)
