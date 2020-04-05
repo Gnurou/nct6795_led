@@ -93,11 +93,16 @@ enum { RED = 0, GREEN, BLUE, NUM_COLORS };
 
 static u8 init_vals[NUM_COLORS];
 module_param_named(r, init_vals[RED], byte, 0);
-MODULE_PARM_DESC(r, "Initial red intensity");
+MODULE_PARM_DESC(r, "Initial red intensity (default 0)");
 module_param_named(g, init_vals[GREEN], byte, 0);
-MODULE_PARM_DESC(g, "Initial green intensity");
+MODULE_PARM_DESC(g, "Initial green intensity (default 0)");
 module_param_named(b, init_vals[BLUE], byte, 0);
-MODULE_PARM_DESC(b, "Initial blue intensity");
+MODULE_PARM_DESC(b, "Initial blue intensity (default 0)");
+
+#define DEFAULT_BASE_PORT 0x4e
+static u16 base_port = DEFAULT_BASE_PORT;
+module_param_named(base_port, base_port, ushort, 0444);
+MODULE_PARM_DESC(base_port, "Base port to probe (default 0x4e)");
 
 static const char *led_names[NUM_COLORS] = {
 	"nct6795d:red:0",
@@ -109,19 +114,17 @@ struct nct6795d_led {
 	struct led_classdev cdev[NUM_COLORS];
 };
 
-static const int base = 0x4e;
-
 static int nct6795d_led_detect(struct device *dev)
 {
 	int ret;
 	u16 val;
 
-	ret = superio_enter(base);
+	ret = superio_enter(base_port);
 	if (ret)
 		return ret;
 
-	val = (superio_inb(base, SIO_REG_DEVID) << 8) |
-	       superio_inb(base, SIO_REG_DEVID + 1);
+	val = (superio_inb(base_port, SIO_REG_DEVID) << 8) |
+	       superio_inb(base_port, SIO_REG_DEVID + 1);
 
 	if ((val & 0xfff8) != 0xd350) {
 		dev_err(dev, "nct6795d not found!\n");
@@ -130,7 +133,7 @@ static int nct6795d_led_detect(struct device *dev)
 	}
 
 err_not_found:
-	superio_exit(base);
+	superio_exit(base_port);
 	return ret;
 }
 
@@ -143,7 +146,7 @@ static void nct6795d_write_color(size_t index, enum led_brightness brightness) {
 	 */
 	brightness = (brightness << 4) | brightness;
 	for (i = 0; i <= NUM_COLORS; i++) {
-		superio_outb(base, index + i, brightness);
+		superio_outb(base_port, index + i, brightness);
 	}
 }
 
@@ -152,25 +155,25 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 	int ret;
 	u16 val;
 
-	ret = superio_enter(base);
+	ret = superio_enter(base_port);
 	if (ret)
 		return ret;
 
 	/* Check if RGB control enabled */
-	val = superio_inb(base, 0xe0);
+	val = superio_inb(base_port, 0xe0);
 	if ((val & 0xe0) != 0xe0) {
-		superio_outb(base, 0xe0, 0xe0 | (val & !0xe0));
+		superio_outb(base_port, 0xe0, 0xe0 | (val & !0xe0));
 	}
 
 	/* Without this pulsing does not work? */
 	/*
-	superio_outb(base, 0x07, 0x09);
-	val = superio_inb(base, 0x2c);
-	superio_outb(base, 0x2c, val | 0x10);
+	superio_outb(base_port, 0x07, 0x09);
+	val = superio_inb(base_port, 0x2c);
+	superio_outb(base_port, 0x2c, val | 0x10);
 	*/
 
 	/* Select the 0x12th bank (RGB) */
-	superio_select(base, NCT6775_LD_12);
+	superio_select(base_port, NCT6775_LD_12);
 
 	dev_info(led->cdev->dev, "programming values: %d %d %d\n",
 		 led->cdev[RED].brightness, led->cdev[GREEN].brightness,
@@ -180,7 +183,7 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 	nct6795d_write_color(0xf4, led->cdev[GREEN].brightness);
 	nct6795d_write_color(0xf8, led->cdev[BLUE].brightness);
 
-	superio_exit(base);
+	superio_exit(base_port);
 
 	return 0;
 }
