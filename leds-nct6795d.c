@@ -39,34 +39,30 @@
 
 /* Copied from drivers/hwmon/nct6775.c */
 
-#define NCT6775_LD_12		0x12
+#define NCT6775_LD_12 0x12
 
-#define SIO_REG_LDSEL		0x07	/* Logical device select */
-#define SIO_REG_DEVID		0x20	/* Device ID (2 bytes) */
+#define SIO_REG_LDSEL 0x07 /* Logical device select */
+#define SIO_REG_DEVID 0x20 /* Device ID (2 bytes) */
 
-static inline void
-superio_outb(int ioreg, int reg, int val)
+static inline void superio_outb(int ioreg, int reg, int val)
 {
 	outb(reg, ioreg);
 	outb(val, ioreg + 1);
 }
 
-static inline int
-superio_inb(int ioreg, int reg)
+static inline int superio_inb(int ioreg, int reg)
 {
 	outb(reg, ioreg);
 	return inb(ioreg + 1);
 }
 
-static inline void
-superio_select(int ioreg, int ld)
+static inline void superio_select(int ioreg, int ld)
 {
 	outb(SIO_REG_LDSEL, ioreg);
 	outb(ld, ioreg + 1);
 }
 
-static inline int
-superio_enter(int ioreg)
+static inline int superio_enter(int ioreg)
 {
 	if (!request_muxed_region(ioreg, 2, "NCT6795D LED"))
 		return -EBUSY;
@@ -77,8 +73,7 @@ superio_enter(int ioreg)
 	return 0;
 }
 
-static inline void
-superio_exit(int ioreg)
+static inline void superio_exit(int ioreg)
 {
 	outb(0xaa, ioreg);
 	outb(0x02, ioreg);
@@ -87,7 +82,6 @@ superio_exit(int ioreg)
 }
 
 /* End copy from drivers/hwmon/nct6775.c */
-
 
 enum { RED = 0, GREEN, BLUE, NUM_COLORS };
 
@@ -125,7 +119,7 @@ static int nct6795d_led_detect(struct device *dev, u16 base_port)
 		return ret;
 
 	val = (superio_inb(base_port, SIO_REG_DEVID) << 8) |
-	       superio_inb(base_port, SIO_REG_DEVID + 1);
+	      superio_inb(base_port, SIO_REG_DEVID + 1);
 
 	if ((val & 0xfff8) != 0xd350) {
 		dev_err(dev, "nct6795d not found!\n");
@@ -138,7 +132,9 @@ err_not_found:
 	return ret;
 }
 
-static void nct6795d_write_color(struct nct6795d_led *led, size_t index, enum led_brightness brightness) {
+static void nct6795d_write_color(struct nct6795d_led *led, size_t index,
+				 enum led_brightness brightness)
+{
 	int i;
 
 	/*
@@ -190,8 +186,8 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 }
 
 static void nct6795d_led_brightness_set_color(struct led_classdev *cdev,
-					     int color,
-					     enum led_brightness value)
+					      int color,
+					      enum led_brightness value)
 {
 	struct nct6795d_led *led;
 	led = container_of(cdev, struct nct6795d_led, cdev[color]);
@@ -200,24 +196,25 @@ static void nct6795d_led_brightness_set_color(struct led_classdev *cdev,
 }
 
 static void nct6795d_led_brightness_set_red(struct led_classdev *cdev,
-					   enum led_brightness value)
+					    enum led_brightness value)
 {
 	nct6795d_led_brightness_set_color(cdev, RED, value);
 }
 
 static void nct6795d_led_brightness_set_green(struct led_classdev *cdev,
-					     enum led_brightness value)
+					      enum led_brightness value)
 {
 	nct6795d_led_brightness_set_color(cdev, GREEN, value);
 }
 
 static void nct6795d_led_brightness_set_blue(struct led_classdev *cdev,
-					    enum led_brightness value)
+					     enum led_brightness value)
 {
 	nct6795d_led_brightness_set_color(cdev, BLUE, value);
 }
 
-static void (*brightness_set[NUM_COLORS])(struct led_classdev *, enum led_brightness) = {
+static void (*brightness_set[NUM_COLORS])(struct led_classdev *,
+					  enum led_brightness) = {
 	&nct6795d_led_brightness_set_red,
 	&nct6795d_led_brightness_set_green,
 	&nct6795d_led_brightness_set_blue,
@@ -266,7 +263,7 @@ static int nct6795d_led_suspend(struct device *dev)
 
 static int nct6795d_led_resume(struct device *dev)
 {
-	struct nct6795d_led *led =dev_get_drvdata(dev);
+	struct nct6795d_led *led = dev_get_drvdata(dev);
 	int ret;
 
 	/* For some reason this needs to be done twice?? */
@@ -288,7 +285,7 @@ static struct platform_driver nct6795d_led_driver = {
 	.probe = nct6795d_led_probe,
 };
 
-static struct platform_device* nct6795d_led_pdev;
+static struct platform_device *nct6795d_led_pdev;
 
 static int __init nct6795d_led_init(void)
 {
