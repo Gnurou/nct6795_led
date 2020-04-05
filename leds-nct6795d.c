@@ -151,10 +151,11 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 	}
 }
 
-static int nct6795d_led_commit(const struct nct6795d_led *led)
+static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 {
 	int ret;
 	u16 val;
+	const struct led_classdev *cdev = led->cdev;
 
 	ret = superio_enter(led->base_port);
 	if (ret)
@@ -177,12 +178,15 @@ static int nct6795d_led_commit(const struct nct6795d_led *led)
 	superio_select(led->base_port, NCT6775_LD_12);
 
 	dev_dbg(led->dev, "setting values: R=%d G=%d B=%d\n",
-		led->cdev[RED].brightness, led->cdev[GREEN].brightness,
-		led->cdev[BLUE].brightness);
+		cdev[RED].brightness, cdev[GREEN].brightness,
+		cdev[BLUE].brightness);
 
-	nct6795d_led_commit_color(led, 0xf0, led->cdev[RED].brightness);
-	nct6795d_led_commit_color(led, 0xf4, led->cdev[GREEN].brightness);
-	nct6795d_led_commit_color(led, 0xf8, led->cdev[BLUE].brightness);
+	if (color_mask & BIT(RED))
+		nct6795d_led_commit_color(led, 0xf0, cdev[RED].brightness);
+	if (color_mask & BIT(GREEN))
+		nct6795d_led_commit_color(led, 0xf4, cdev[GREEN].brightness);
+	if (color_mask & BIT(BLUE))
+		nct6795d_led_commit_color(led, 0xf8, cdev[BLUE].brightness);
 
 	superio_exit(led->base_port);
 
@@ -194,7 +198,7 @@ static void nct6795d_led_brightness_set_red(struct led_classdev *cdev,
 {
 	const struct nct6795d_led *led =
 		container_of(cdev, struct nct6795d_led, cdev[RED]);
-	nct6795d_led_commit(led);
+	nct6795d_led_commit(led, BIT(RED));
 }
 
 static void nct6795d_led_brightness_set_green(struct led_classdev *cdev,
@@ -202,7 +206,7 @@ static void nct6795d_led_brightness_set_green(struct led_classdev *cdev,
 {
 	const struct nct6795d_led *led =
 		container_of(cdev, struct nct6795d_led, cdev[GREEN]);
-	nct6795d_led_commit(led);
+	nct6795d_led_commit(led, BIT(GREEN));
 }
 
 static void nct6795d_led_brightness_set_blue(struct led_classdev *cdev,
@@ -210,7 +214,7 @@ static void nct6795d_led_brightness_set_blue(struct led_classdev *cdev,
 {
 	const struct nct6795d_led *led =
 		container_of(cdev, struct nct6795d_led, cdev[BLUE]);
-	nct6795d_led_commit(led);
+	nct6795d_led_commit(led, BIT(BLUE));
 }
 
 static void (*brightness_set[NUM_COLORS])(struct led_classdev *,
@@ -256,7 +260,7 @@ static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
 
 	dev_set_drvdata(&pdev->dev, led);
 
-	nct6795d_led_commit(led);
+	nct6795d_led_commit(led, BIT(RED) | BIT(GREEN) | BIT(BLUE));
 
 	return led;
 }
@@ -286,13 +290,14 @@ static int nct6795d_led_suspend(struct device *dev)
 static int nct6795d_led_resume(struct device *dev)
 {
 	struct nct6795d_led *led = dev_get_drvdata(dev);
+	const u8 color_mask = BIT(RED) | BIT(GREEN) | BIT(BLUE);
 	int ret;
 
 	/* For some reason this needs to be done twice?? */
-	ret = nct6795d_led_commit(led);
+	ret = nct6795d_led_commit(led, color_mask);
 	if (ret)
 		return ret;
-	return nct6795d_led_commit(led);
+	return nct6795d_led_commit(led, color_mask);
 }
 #endif
 
