@@ -1,5 +1,5 @@
 KERNEL_VERSION=$(shell uname -r)
-obj-m += nct6795_led.o
+obj-m += leds-nct6795d.o
 
 all:
 	make -C /lib/modules/$(KERNEL_VERSION)/build M=$(PWD) modules
@@ -9,7 +9,7 @@ clean:
 
 install:
 	mkdir -p /lib/modules/$(KERNEL_VERSION)/extramodules/
-	cp nct6795_led.ko /lib/modules/$(KERNEL_VERSION)/extramodules/
+	cp leds-nct6795d.ko /lib/modules/$(KERNEL_VERSION)/extramodules/
 
 compile_commands.json: clean
 	bear make

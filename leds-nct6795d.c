@@ -1,4 +1,32 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0+
+// Copyright (c) 2020 Alexandre Courbot <gnurou@gmail.com>
+/*
+ * NCT6795D LED driver
+ *
+ * Driver to control the RGB interfaces found on some MSI motherboards.
+ * This is for the most part a port of the MSI-RGB user-space program
+ * (https://github.com/nagisa/msi-rgb.git) to the Linux kernel LED interface.
+ * It is more limited than the original program due to limitations in the LED
+ * interface. For now, only static displays of colors are possible.
+ *
+ * Supported motherboards (a per MSI-RGB's README):
+ * B350 MORTAR ARCTIC
+ * B350 PC MATE
+ * B350 TOMAHAWK
+ * B360M GAMING PLUS
+ * B450 GAMING PLUS AC
+ * B450 MORTAR
+ * B450 TOMAHAWK
+ * H270 MORTAR ARCTIC
+ * H270 TOMAHAWK ARCTIC
+ * X470 GAMING PLUS
+ * X470 GAMING PRO
+ * Z270 GAMING M7
+ * Z270 SLI PLUS
+ * Z370 MORTAR
+ * Z370 PC PRO
+ *
+ */
 
 #include <asm/io.h>
 #include <linux/init.h>
@@ -40,10 +68,7 @@ superio_select(int ioreg, int ld)
 static inline int
 superio_enter(int ioreg)
 {
-	/*
-	 * Try to reserve <ioreg> and <ioreg + 1> for exclusive access.
-	 */
-	if (!request_muxed_region(ioreg, 2, "NCT6795 LED"))
+	if (!request_muxed_region(ioreg, 2, "NCT6795D LED"))
 		return -EBUSY;
 
 	outb(0x87, ioreg);
@@ -75,18 +100,18 @@ module_param_named(b, init_vals[BLUE], byte, 0);
 MODULE_PARM_DESC(b, "Initial blue intensity");
 
 static const char *led_names[3] = {
-	"nct6795:red:0",
-	"nct6795:green:0",
-	"nct6795:blue:0",
+	"nct6795d:red:0",
+	"nct6795d:green:0",
+	"nct6795d:blue:0",
 };
 
-struct nct6795_led {
+struct nct6795d_led {
 	struct led_classdev cdev[3];
 };
 
 static const int base = 0x4e;
 
-static int nct6795_led_detect(struct device *dev)
+static int nct6795d_led_detect(struct device *dev)
 {
 	int err;
 	u16 val;
@@ -99,7 +124,7 @@ static int nct6795_led_detect(struct device *dev)
 	       superio_inb(base, SIO_REG_DEVID + 1);
 
 	if ((val & 0xfff8) != 0xd350) {
-		dev_err(dev, "nct6795 not found!\n");
+		dev_err(dev, "nct6795d not found!\n");
 		err = -ENXIO;
 		goto err;
 	}
@@ -109,7 +134,7 @@ err:
 	return err;
 }
 
-static int nct6795_led_program(struct nct6795_led *led)
+static int nct6795d_led_program(struct nct6795d_led *led)
 {
 	int err;
 	int i;
@@ -150,49 +175,49 @@ static int nct6795_led_program(struct nct6795_led *led)
 	return 0;
 }
 
-static void nct6795_led_brightness_set_color(struct led_classdev *cdev,
+static void nct6795d_led_brightness_set_color(struct led_classdev *cdev,
 					     int color,
 					     enum led_brightness value)
 {
-	struct nct6795_led *led;
-	led = container_of(cdev, struct nct6795_led, cdev[color]);
+	struct nct6795d_led *led;
+	led = container_of(cdev, struct nct6795d_led, cdev[color]);
 
-	nct6795_led_program(led);
+	nct6795d_led_program(led);
 }
 
-static void nct6795_led_brightness_set_red(struct led_classdev *cdev,
+static void nct6795d_led_brightness_set_red(struct led_classdev *cdev,
 					   enum led_brightness value)
 {
-	nct6795_led_brightness_set_color(cdev, RED, value);
+	nct6795d_led_brightness_set_color(cdev, RED, value);
 }
 
-static void nct6795_led_brightness_set_green(struct led_classdev *cdev,
+static void nct6795d_led_brightness_set_green(struct led_classdev *cdev,
 					     enum led_brightness value)
 {
-	nct6795_led_brightness_set_color(cdev, GREEN, value);
+	nct6795d_led_brightness_set_color(cdev, GREEN, value);
 }
 
-static void nct6795_led_brightness_set_blue(struct led_classdev *cdev,
+static void nct6795d_led_brightness_set_blue(struct led_classdev *cdev,
 					    enum led_brightness value)
 {
-	nct6795_led_brightness_set_color(cdev, BLUE, value);
+	nct6795d_led_brightness_set_color(cdev, BLUE, value);
 }
 
 static void (*brightness_set[3])(struct led_classdev *, enum led_brightness) = {
-	&nct6795_led_brightness_set_red,
-	&nct6795_led_brightness_set_green,
-	&nct6795_led_brightness_set_blue,
+	&nct6795d_led_brightness_set_red,
+	&nct6795d_led_brightness_set_green,
+	&nct6795d_led_brightness_set_blue,
 };
 
-static int nct6795_led_probe(struct platform_device *pdev)
+static int nct6795d_led_probe(struct platform_device *pdev)
 {
-	struct nct6795_led *led;
+	struct nct6795d_led *led;
 	int err;
 	int i;
 
-	printk(KERN_INFO "nct6795_led probing\n");
+	printk(KERN_INFO "nct6795d_led probing\n");
 
-	err = nct6795_led_detect(&pdev->dev);
+	err = nct6795d_led_detect(&pdev->dev);
 	if (err)
 		return err;
 
@@ -214,79 +239,79 @@ static int nct6795_led_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, led);
 
-	nct6795_led_program(led);
+	nct6795d_led_program(led);
 
 	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int nct6795_led_suspend(struct device *dev)
+static int nct6795d_led_suspend(struct device *dev)
 {
 	return 0;
 }
 
-static int nct6795_led_resume(struct device *dev)
+static int nct6795d_led_resume(struct device *dev)
 {
-	struct nct6795_led *led =dev_get_drvdata(dev);
+	struct nct6795d_led *led =dev_get_drvdata(dev);
 	int ret;
 
 	// For some reason this needs to be done twice??
-	ret = nct6795_led_program(led);
+	ret = nct6795d_led_program(led);
 	if (ret)
 		return ret;
-	return nct6795_led_program(led);
+	return nct6795d_led_program(led);
 }
 #endif
 
-static SIMPLE_DEV_PM_OPS(nct_6795_led_pm_ops, nct6795_led_suspend,
-			 nct6795_led_resume);
+static SIMPLE_DEV_PM_OPS(nct_6795d_led_pm_ops, nct6795d_led_suspend,
+			 nct6795d_led_resume);
 
-static struct platform_driver nct6795_led_driver = {
+static struct platform_driver nct6795d_led_driver = {
 	.driver = {
-		.name = "nct6795_led",
-		.pm = &nct_6795_led_pm_ops,
+		.name = "nct6795d_led",
+		.pm = &nct_6795d_led_pm_ops,
 	},
-	.probe = nct6795_led_probe,
+	.probe = nct6795d_led_probe,
 };
 
-static struct platform_device* nct6795_led_pdev;
+static struct platform_device* nct6795d_led_pdev;
 
-static int __init nct6795_led_init(void)
+static int __init nct6795d_led_init(void)
 {
 	int err;
 
-	printk(KERN_INFO "nct6795_led_init\n");
-	err = platform_driver_register(&nct6795_led_driver);
+	printk(KERN_INFO "nct6795d_led_init\n");
+	err = platform_driver_register(&nct6795d_led_driver);
 	if (err)
 		return err;
 
-	nct6795_led_pdev = platform_device_alloc("nct6795_led", 0);
-	if (!nct6795_led_pdev) {
+	nct6795d_led_pdev = platform_device_alloc("nct6795d_led", 0);
+	if (!nct6795d_led_pdev) {
 		err = -ENOMEM;
 		goto error_pdev_alloc;
 	}
 
-	err = platform_device_add(nct6795_led_pdev);
+	err = platform_device_add(nct6795d_led_pdev);
 	if (err)
 		goto error_pdev_alloc;
 
 	return 0;
 
 error_pdev_alloc:
-	platform_driver_unregister(&nct6795_led_driver);
+	platform_driver_unregister(&nct6795d_led_driver);
 	return err;
 }
 
-static void __exit nct6795_led_exit(void)
+static void __exit nct6795d_led_exit(void)
 {
-	printk(KERN_INFO "nct6795_led_exit\n");
-	platform_device_unregister(nct6795_led_pdev);
-	platform_driver_unregister(&nct6795_led_driver);
+	printk(KERN_INFO "nct6795d_led_exit\n");
+	platform_device_unregister(nct6795d_led_pdev);
+	platform_driver_unregister(&nct6795d_led_driver);
 }
 
-module_init(nct6795_led_init);
-module_exit(nct6795_led_exit);
+module_init(nct6795d_led_init);
+module_exit(nct6795d_led_exit);
 
 MODULE_AUTHOR("Alexandre Courbot <gnurou@gmail.com>");
-MODULE_DESCRIPTION("LED driver for NCT6795");
+MODULE_DESCRIPTION("LED driver for NCT6795D");
 MODULE_LICENSE("GPL");
