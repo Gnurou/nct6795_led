@@ -112,7 +112,7 @@ struct nct6795d_led {
 	struct led_classdev cdev[NUM_COLORS];
 };
 
-static int nct6795d_led_detect(struct device *dev, u16 base_port)
+static int nct6795d_led_detect(u16 base_port)
 {
 	int ret;
 	u16 val;
@@ -124,13 +124,9 @@ static int nct6795d_led_detect(struct device *dev, u16 base_port)
 	val = (superio_inb(base_port, SIO_REG_DEVID) << 8) |
 	      superio_inb(base_port, SIO_REG_DEVID + 1);
 
-	if ((val & 0xfff8) != 0xd350) {
-		dev_err(dev, "nct6795d not found!\n");
+	if ((val & 0xfff8) != 0xd350)
 		ret = -ENXIO;
-		goto err_not_found;
-	}
 
-err_not_found:
 	superio_exit(base_port);
 	return ret;
 }
@@ -231,10 +227,6 @@ static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
 	int ret;
 	int i;
 
-	ret = nct6795d_led_detect(&pdev->dev, base_port);
-	if (ret)
-		return ERR_PTR(ret);
-
 	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
 	if (!led)
 		return ERR_PTR(-ENOMEM);
@@ -268,11 +260,6 @@ static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
 static int nct6795d_led_probe(struct platform_device *pdev)
 {
 	struct nct6795d_led *led;
-	int ret;
-
-	ret = nct6795d_led_detect(&pdev->dev, base_port);
-	if (ret)
-		return ret;
 
 	led = nct6795d_led_create(pdev, base_port);
 	if (IS_ERR(led))
@@ -312,11 +299,27 @@ static struct platform_driver nct6795d_led_driver = {
 	.probe = nct6795d_led_probe,
 };
 
-static struct platform_device *nct6795d_led_pdev;
+static struct platform_device *nct6795d_led_pdev = NULL;
 
 static int __init nct6795d_led_init(void)
 {
+	static const u16 io_bases[] = { 0x4e, 0x2e };
+	int base_port;
 	int ret;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(io_bases); i++) {
+		if (!nct6795d_led_detect(io_bases[i]))
+			break;
+	}
+
+	if (i == ARRAY_SIZE(io_bases)) {
+		pr_err("failed to detect nct6795d chip\n");
+		return -ENXIO;
+	}
+
+	base_port = io_bases[i];
+	pr_info("found nct6795d chip at address 0x%x\n", base_port);
 
 	ret = platform_driver_register(&nct6795d_led_driver);
 	if (ret)
