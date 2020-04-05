@@ -37,6 +37,8 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
+#define NCT6795D_NAME "nct6795d"
+
 /* Copied from drivers/hwmon/nct6775.c */
 
 #define NCT6775_LD_12 0x12
@@ -99,9 +101,9 @@ module_param_named(base_port, base_port, ushort, 0444);
 MODULE_PARM_DESC(base_port, "Base port to probe (default 0x4e)");
 
 static const char *led_names[NUM_COLORS] = {
-	"nct6795d:red:0",
-	"nct6795d:green:0",
-	"nct6795d:blue:0",
+	"red:",
+	"green:",
+	"blue:",
 };
 
 struct nct6795d_led {
@@ -238,12 +240,16 @@ static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
 
 	for (i = 0; i < NUM_COLORS; i++) {
 		struct led_classdev *cdev = &led->cdev[i];
+		struct led_init_data init_data = {};
 
-		cdev->name = led_names[i];
+		init_data.devicename = NCT6795D_NAME;
+		init_data.default_label = led_names[i];
+
 		cdev->brightness = init_vals[i];
 		cdev->max_brightness = 0xf;
 		cdev->brightness_set = brightness_set[i];
-		ret = devm_led_classdev_register(&pdev->dev, cdev);
+		ret = devm_led_classdev_register_ext(&pdev->dev, cdev,
+						     &init_data);
 		if (ret)
 			return ERR_PTR(ret);
 	}
@@ -311,7 +317,8 @@ static int __init nct6795d_led_init(void)
 	if (ret)
 		return ret;
 
-	nct6795d_led_pdev = platform_device_alloc("nct6795d_led", 0);
+	nct6795d_led_pdev =
+		platform_device_alloc(NCT6795D_NAME "_led", base_port);
 	if (!nct6795d_led_pdev) {
 		ret = -ENOMEM;
 		goto error_pdev_alloc;
