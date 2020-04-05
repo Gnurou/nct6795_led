@@ -89,9 +89,9 @@ superio_exit(int ioreg)
 /* End copy from drivers/hwmon/nct6775.c */
 
 
-enum { RED = 0, GREEN, BLUE };
+enum { RED = 0, GREEN, BLUE, NUM_COLORS };
 
-static u8 init_vals[3];
+static u8 init_vals[NUM_COLORS];
 module_param_named(r, init_vals[RED], byte, 0);
 MODULE_PARM_DESC(r, "Initial red intensity");
 module_param_named(g, init_vals[GREEN], byte, 0);
@@ -99,14 +99,14 @@ MODULE_PARM_DESC(g, "Initial green intensity");
 module_param_named(b, init_vals[BLUE], byte, 0);
 MODULE_PARM_DESC(b, "Initial blue intensity");
 
-static const char *led_names[3] = {
+static const char *led_names[NUM_COLORS] = {
 	"nct6795d:red:0",
 	"nct6795d:green:0",
 	"nct6795d:blue:0",
 };
 
 struct nct6795d_led {
-	struct led_classdev cdev[3];
+	struct led_classdev cdev[NUM_COLORS];
 };
 
 static const int base = 0x4e;
@@ -142,7 +142,7 @@ static void nct6795d_write_color(size_t index, enum led_brightness brightness) {
 	 * frame. We set them all to the same value.
 	 */
 	brightness = (brightness << 4) | brightness;
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i <= NUM_COLORS; i++) {
 		superio_outb(base, index + i, brightness);
 	}
 }
@@ -213,7 +213,7 @@ static void nct6795d_led_brightness_set_blue(struct led_classdev *cdev,
 	nct6795d_led_brightness_set_color(cdev, BLUE, value);
 }
 
-static void (*brightness_set[3])(struct led_classdev *, enum led_brightness) = {
+static void (*brightness_set[NUM_COLORS])(struct led_classdev *, enum led_brightness) = {
 	&nct6795d_led_brightness_set_red,
 	&nct6795d_led_brightness_set_green,
 	&nct6795d_led_brightness_set_blue,
@@ -233,7 +233,7 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 	if (!led)
 		return -ENOMEM;
 
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < NUM_COLORS; i++) {
 		struct led_classdev *cdev = &led->cdev[i];
 
 		cdev->name = led_names[i];
