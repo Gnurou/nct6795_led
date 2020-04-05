@@ -111,10 +111,11 @@ static const char *led_names[NUM_COLORS] = {
 };
 
 struct nct6795d_led {
+	u16 base_port;
 	struct led_classdev cdev[NUM_COLORS];
 };
 
-static int nct6795d_led_detect(struct device *dev)
+static int nct6795d_led_detect(struct device *dev, u16 base_port)
 {
 	int ret;
 	u16 val;
@@ -137,7 +138,7 @@ err_not_found:
 	return ret;
 }
 
-static void nct6795d_write_color(size_t index, enum led_brightness brightness) {
+static void nct6795d_write_color(struct nct6795d_led *led, size_t index, enum led_brightness brightness) {
 	int i;
 
 	/*
@@ -146,7 +147,7 @@ static void nct6795d_write_color(size_t index, enum led_brightness brightness) {
 	 */
 	brightness = (brightness << 4) | brightness;
 	for (i = 0; i <= NUM_COLORS; i++) {
-		superio_outb(base_port, index + i, brightness);
+		superio_outb(led->base_port, index + i, brightness);
 	}
 }
 
@@ -155,35 +156,35 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 	int ret;
 	u16 val;
 
-	ret = superio_enter(base_port);
+	ret = superio_enter(led->base_port);
 	if (ret)
 		return ret;
 
 	/* Check if RGB control enabled */
-	val = superio_inb(base_port, 0xe0);
+	val = superio_inb(led->base_port, 0xe0);
 	if ((val & 0xe0) != 0xe0) {
-		superio_outb(base_port, 0xe0, 0xe0 | (val & !0xe0));
+		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
 	}
 
 	/* Without this pulsing does not work? */
 	/*
-	superio_outb(base_port, 0x07, 0x09);
-	val = superio_inb(base_port, 0x2c);
-	superio_outb(base_port, 0x2c, val | 0x10);
+	superio_outb(led->base_port, 0x07, 0x09);
+	val = superio_inb(led->base_port, 0x2c);
+	superio_outb(led->base_port, 0x2c, val | 0x10);
 	*/
 
 	/* Select the 0x12th bank (RGB) */
-	superio_select(base_port, NCT6775_LD_12);
+	superio_select(led->base_port, NCT6775_LD_12);
 
 	dev_info(led->cdev->dev, "programming values: %d %d %d\n",
 		 led->cdev[RED].brightness, led->cdev[GREEN].brightness,
 		 led->cdev[BLUE].brightness);
 
-	nct6795d_write_color(0xf0, led->cdev[RED].brightness);
-	nct6795d_write_color(0xf4, led->cdev[GREEN].brightness);
-	nct6795d_write_color(0xf8, led->cdev[BLUE].brightness);
+	nct6795d_write_color(led, 0xf0, led->cdev[RED].brightness);
+	nct6795d_write_color(led, 0xf4, led->cdev[GREEN].brightness);
+	nct6795d_write_color(led, 0xf8, led->cdev[BLUE].brightness);
 
-	superio_exit(base_port);
+	superio_exit(led->base_port);
 
 	return 0;
 }
@@ -228,13 +229,15 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 	int ret;
 	int i;
 
-	ret = nct6795d_led_detect(&pdev->dev);
+	ret = nct6795d_led_detect(&pdev->dev, base_port);
 	if (ret)
 		return ret;
 
 	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
 	if (!led)
 		return -ENOMEM;
+
+	led->base_port = base_port;
 
 	for (i = 0; i < NUM_COLORS; i++) {
 		struct led_classdev *cdev = &led->cdev[i];
