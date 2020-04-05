@@ -105,6 +105,7 @@ static const char *led_names[NUM_COLORS] = {
 };
 
 struct nct6795d_led {
+	struct device *dev;
 	u16 base_port;
 	struct led_classdev cdev[NUM_COLORS];
 };
@@ -173,7 +174,7 @@ static int nct6795d_led_commit(const struct nct6795d_led *led)
 	/* Select the 0x12th bank (RGB) */
 	superio_select(led->base_port, NCT6775_LD_12);
 
-	dev_info(led->cdev->dev, "programming values: %d %d %d\n",
+	dev_info(led->dev, "setting values: R=%d G=%d B=%d\n",
 		 led->cdev[RED].brightness, led->cdev[GREEN].brightness,
 		 led->cdev[BLUE].brightness);
 
@@ -232,6 +233,7 @@ static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
 	if (!led)
 		return ERR_PTR(-ENOMEM);
 
+	led->dev = &pdev->dev;
 	led->base_port = base_port;
 
 	for (i = 0; i < NUM_COLORS; i++) {
