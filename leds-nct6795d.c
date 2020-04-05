@@ -132,8 +132,9 @@ err_not_found:
 	return ret;
 }
 
-static void nct6795d_led_commit_color(const struct nct6795d_led *led, size_t index,
-				 enum led_brightness brightness)
+static void nct6795d_led_commit_color(const struct nct6795d_led *led,
+				      size_t index,
+				      enum led_brightness brightness)
 {
 	int i;
 
@@ -220,7 +221,8 @@ static void (*brightness_set[NUM_COLORS])(struct led_classdev *,
 	&nct6795d_led_brightness_set_blue,
 };
 
-static int nct6795d_led_probe(struct platform_device *pdev)
+static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
+						u16 base_port)
 {
 	struct nct6795d_led *led;
 	int ret;
@@ -228,11 +230,11 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 
 	ret = nct6795d_led_detect(&pdev->dev, base_port);
 	if (ret)
-		return ret;
+		return ERR_PTR(ret);
 
 	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
 	if (!led)
-		return -ENOMEM;
+		return ERR_PTR(-ENOMEM);
 
 	led->base_port = base_port;
 
@@ -245,12 +247,28 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 		cdev->brightness_set = brightness_set[i];
 		ret = devm_led_classdev_register(&pdev->dev, cdev);
 		if (ret)
-			return ret;
+			return ERR_PTR(ret);
 	}
 
 	dev_set_drvdata(&pdev->dev, led);
 
 	nct6795d_led_commit(led);
+
+	return led;
+}
+
+static int nct6795d_led_probe(struct platform_device *pdev)
+{
+	struct nct6795d_led *led;
+	int ret;
+
+	ret = nct6795d_led_detect(&pdev->dev, base_port);
+	if (ret)
+		return ret;
+
+	led = nct6795d_led_create(pdev, base_port);
+	if (IS_ERR(led))
+		return PTR_ERR(led);
 
 	return 0;
 }
