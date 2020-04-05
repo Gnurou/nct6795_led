@@ -132,7 +132,7 @@ err_not_found:
 	return ret;
 }
 
-static void nct6795d_write_color(struct nct6795d_led *led, size_t index,
+static void nct6795d_led_commit_color(const struct nct6795d_led *led, size_t index,
 				 enum led_brightness brightness)
 {
 	int i;
@@ -147,7 +147,7 @@ static void nct6795d_write_color(struct nct6795d_led *led, size_t index,
 	}
 }
 
-static int nct6795d_led_program(struct nct6795d_led *led)
+static int nct6795d_led_commit(const struct nct6795d_led *led)
 {
 	int ret;
 	u16 val;
@@ -176,9 +176,9 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 		 led->cdev[RED].brightness, led->cdev[GREEN].brightness,
 		 led->cdev[BLUE].brightness);
 
-	nct6795d_write_color(led, 0xf0, led->cdev[RED].brightness);
-	nct6795d_write_color(led, 0xf4, led->cdev[GREEN].brightness);
-	nct6795d_write_color(led, 0xf8, led->cdev[BLUE].brightness);
+	nct6795d_led_commit_color(led, 0xf0, led->cdev[RED].brightness);
+	nct6795d_led_commit_color(led, 0xf4, led->cdev[GREEN].brightness);
+	nct6795d_led_commit_color(led, 0xf8, led->cdev[BLUE].brightness);
 
 	superio_exit(led->base_port);
 
@@ -192,7 +192,7 @@ static void nct6795d_led_brightness_set_color(struct led_classdev *cdev,
 	struct nct6795d_led *led;
 	led = container_of(cdev, struct nct6795d_led, cdev[color]);
 
-	nct6795d_led_program(led);
+	nct6795d_led_commit(led);
 }
 
 static void nct6795d_led_brightness_set_red(struct led_classdev *cdev,
@@ -250,7 +250,7 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, led);
 
-	nct6795d_led_program(led);
+	nct6795d_led_commit(led);
 
 	return 0;
 }
@@ -267,10 +267,10 @@ static int nct6795d_led_resume(struct device *dev)
 	int ret;
 
 	/* For some reason this needs to be done twice?? */
-	ret = nct6795d_led_program(led);
+	ret = nct6795d_led_commit(led);
 	if (ret)
 		return ret;
-	return nct6795d_led_program(led);
+	return nct6795d_led_commit(led);
 }
 #endif
 
