@@ -160,8 +160,9 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 	// Select the 0x12th bank (RGB)
 	superio_select(base, NCT6775_LD_12);
 
-	printk("Programming: %d %d %d\n", led->cdev[RED].brightness,
-	       led->cdev[GREEN].brightness, led->cdev[BLUE].brightness);
+	dev_info(led->cdev->dev, "programming values: %d %d %d\n",
+		 led->cdev[RED].brightness, led->cdev[GREEN].brightness,
+		 led->cdev[BLUE].brightness);
 
 	for (i = 0; i < 4; i++)
 		superio_outb(base, 0xf0 + i, led->cdev[RED].brightness);
@@ -214,8 +215,6 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 	struct nct6795d_led *led;
 	int err;
 	int i;
-
-	printk(KERN_INFO "nct6795d_led probing\n");
 
 	err = nct6795d_led_detect(&pdev->dev);
 	if (err)
@@ -280,7 +279,6 @@ static int __init nct6795d_led_init(void)
 {
 	int err;
 
-	printk(KERN_INFO "nct6795d_led_init\n");
 	err = platform_driver_register(&nct6795d_led_driver);
 	if (err)
 		return err;
@@ -304,7 +302,6 @@ error_pdev_alloc:
 
 static void __exit nct6795d_led_exit(void)
 {
-	printk(KERN_INFO "nct6795d_led_exit\n");
 	platform_device_unregister(nct6795d_led_pdev);
 	platform_driver_unregister(&nct6795d_led_driver);
 }
