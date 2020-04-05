@@ -144,20 +144,20 @@ static int nct6795d_led_program(struct nct6795d_led *led)
 	if (err)
 		return err;
 
-	// Check if RGB control enabled?
+	/* Check if RGB control enabled */
 	val = superio_inb(base, 0xe0);
 	if ((val & 0xe0) != 0xe0) {
 		superio_outb(base, 0xe0, 0xe0 | (val & !0xe0));
 	}
 
-	// Without this pulsing does not work ?
+	/* Without this pulsing does not work? */
 	/*
 	superio_outb(base, 0x07, 0x09);
 	val = superio_inb(base, 0x2c);
 	superio_outb(base, 0x2c, val | 0x10);
 	*/
 
-	// Select the 0x12th bank (RGB)
+	/* Select the 0x12th bank (RGB) */
 	superio_select(base, NCT6775_LD_12);
 
 	dev_info(led->cdev->dev, "programming values: %d %d %d\n",
@@ -254,7 +254,7 @@ static int nct6795d_led_resume(struct device *dev)
 	struct nct6795d_led *led =dev_get_drvdata(dev);
 	int ret;
 
-	// For some reason this needs to be done twice??
+	/* For some reason this needs to be done twice?? */
 	ret = nct6795d_led_program(led);
 	if (ret)
 		return ret;
