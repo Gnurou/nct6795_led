@@ -186,32 +186,28 @@ static int nct6795d_led_commit(const struct nct6795d_led *led)
 	return 0;
 }
 
-static void nct6795d_led_brightness_set_color(struct led_classdev *cdev,
-					      int color,
-					      enum led_brightness value)
-{
-	struct nct6795d_led *led;
-	led = container_of(cdev, struct nct6795d_led, cdev[color]);
-
-	nct6795d_led_commit(led);
-}
-
 static void nct6795d_led_brightness_set_red(struct led_classdev *cdev,
 					    enum led_brightness value)
 {
-	nct6795d_led_brightness_set_color(cdev, RED, value);
+	const struct nct6795d_led *led =
+		container_of(cdev, struct nct6795d_led, cdev[RED]);
+	nct6795d_led_commit(led);
 }
 
 static void nct6795d_led_brightness_set_green(struct led_classdev *cdev,
 					      enum led_brightness value)
 {
-	nct6795d_led_brightness_set_color(cdev, GREEN, value);
+	const struct nct6795d_led *led =
+		container_of(cdev, struct nct6795d_led, cdev[GREEN]);
+	nct6795d_led_commit(led);
 }
 
 static void nct6795d_led_brightness_set_blue(struct led_classdev *cdev,
 					     enum led_brightness value)
 {
-	nct6795d_led_brightness_set_color(cdev, BLUE, value);
+	const struct nct6795d_led *led =
+		container_of(cdev, struct nct6795d_led, cdev[BLUE]);
+	nct6795d_led_commit(led);
 }
 
 static void (*brightness_set[NUM_COLORS])(struct led_classdev *,
