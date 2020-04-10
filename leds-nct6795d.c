@@ -39,9 +39,9 @@
 
 #define NCT6795D_NAME "nct6795d"
 
-/* Copied from drivers/hwmon/nct6775.c */
+#define NCT6775_RGB_BANK 0x12
 
-#define NCT6775_LD_12 0x12
+/* Copied from drivers/hwmon/nct6775.c */
 
 #define SIO_REG_LDSEL 0x07 /* Logical device select */
 #define SIO_REG_DEVID 0x20 /* Device ID (2 bytes) */
@@ -85,7 +85,12 @@ static inline void superio_exit(int ioreg)
 
 /* End copy from drivers/hwmon/nct6775.c */
 
+#define RED_CELL 0xf0
+#define GREEN_CELL 0xf4
+#define BLUE_CELL 0xf8
+
 enum { RED = 0, GREEN, BLUE, NUM_COLORS };
+#define ALL_COLORS (BIT(RED) | BIT(GREEN) | BIT(BLUE))
 
 static u8 init_vals[NUM_COLORS];
 module_param_named(r, init_vals[RED], byte, 0);
@@ -94,11 +99,6 @@ module_param_named(g, init_vals[GREEN], byte, 0);
 MODULE_PARM_DESC(g, "Initial green intensity (default 0)");
 module_param_named(b, init_vals[BLUE], byte, 0);
 MODULE_PARM_DESC(b, "Initial blue intensity (default 0)");
-
-#define DEFAULT_BASE_PORT 0x4e
-static u16 base_port = DEFAULT_BASE_PORT;
-module_param_named(base_port, base_port, ushort, 0444);
-MODULE_PARM_DESC(base_port, "Base port to probe (default 0x4e)");
 
 static const char *led_names[NUM_COLORS] = {
 	"red:",
@@ -147,6 +147,31 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 	}
 }
 
+static int nct6795d_led_setup(const struct nct6795d_led *led)
+{
+	int ret;
+	int val;
+
+	ret = superio_enter(led->base_port);
+	if (ret)
+		return ret;
+
+	/* Check if RGB control enabled */
+	val = superio_inb(led->base_port, 0xe0);
+	if ((val & 0xe0) != 0xe0) {
+		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
+	}
+
+	/* Without this pulsing does not work? */
+	superio_select(led->base_port, 0x09);
+	val = superio_inb(led->base_port, 0x2c);
+	if ((val & 0x10) != 0x10)
+		superio_outb(led->base_port, 0x2c, val | 0x10);
+
+	superio_exit(led->base_port);
+	return 0;
+}
+
 static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 {
 	int ret;
@@ -164,28 +189,35 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 	}
 
 	/* Without this pulsing does not work? */
-	/*
-	superio_outb(led->base_port, 0x07, 0x09);
+	superio_select(led->base_port, 0x09);
 	val = superio_inb(led->base_port, 0x2c);
-	superio_outb(led->base_port, 0x2c, val | 0x10);
-	*/
+	if ((val & 0x10) != 0x10)
+		superio_outb(led->base_port, 0x2c, val | 0x10);
 
-	/* Select the 0x12th bank (RGB) */
-	superio_select(led->base_port, NCT6775_LD_12);
+	superio_select(led->base_port, NCT6775_RGB_BANK);
+
+	/* Check if RGB control enabled? */
+	val = superio_inb(led->base_port, 0xe0);
+	if ((val & 0xe0) != 0xe0)
+		/* TODO can be simplified to val | 0xe0 ? */
+		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
+
+	/* TODO program other registers to default values */
 
 	dev_dbg(led->dev, "setting values: R=%d G=%d B=%d\n",
 		cdev[RED].brightness, cdev[GREEN].brightness,
 		cdev[BLUE].brightness);
 
 	if (color_mask & BIT(RED))
-		nct6795d_led_commit_color(led, 0xf0, cdev[RED].brightness);
+		nct6795d_led_commit_color(led, RED_CELL, cdev[RED].brightness);
 	if (color_mask & BIT(GREEN))
-		nct6795d_led_commit_color(led, 0xf4, cdev[GREEN].brightness);
+		nct6795d_led_commit_color(led, GREEN_CELL,
+					  cdev[GREEN].brightness);
 	if (color_mask & BIT(BLUE))
-		nct6795d_led_commit_color(led, 0xf8, cdev[BLUE].brightness);
+		nct6795d_led_commit_color(led, BLUE_CELL,
+					  cdev[BLUE].brightness);
 
 	superio_exit(led->base_port);
-
 	return 0;
 }
 
@@ -220,8 +252,7 @@ static void (*brightness_set[NUM_COLORS])(struct led_classdev *,
 	&nct6795d_led_brightness_set_blue,
 };
 
-static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
-						u16 base_port)
+static int nct6795d_led_probe(struct platform_device *pdev)
 {
 	struct nct6795d_led *led;
 	int ret;
@@ -229,10 +260,11 @@ static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
 
 	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
 	if (!led)
-		return ERR_PTR(-ENOMEM);
+		return -ENOMEM;
 
 	led->dev = &pdev->dev;
-	led->base_port = base_port;
+	/* TODO use resource in init function */
+	led->base_port = 0x4e;
 
 	for (i = 0; i < NUM_COLORS; i++) {
 		struct led_classdev *cdev = &led->cdev[i];
@@ -247,23 +279,16 @@ static struct nct6795d_led *nct6795d_led_create(struct platform_device *pdev,
 		ret = devm_led_classdev_register_ext(&pdev->dev, cdev,
 						     &init_data);
 		if (ret)
-			return ERR_PTR(ret);
+			return ret;
 	}
 
 	dev_set_drvdata(&pdev->dev, led);
 
-	nct6795d_led_commit(led, BIT(RED) | BIT(GREEN) | BIT(BLUE));
+	ret = nct6795d_led_setup(led);
+	if (ret)
+		return ret;
 
-	return led;
-}
-
-static int nct6795d_led_probe(struct platform_device *pdev)
-{
-	struct nct6795d_led *led;
-
-	led = nct6795d_led_create(pdev, base_port);
-	if (IS_ERR(led))
-		return PTR_ERR(led);
+	nct6795d_led_commit(led, ALL_COLORS);
 
 	return 0;
 }
@@ -277,14 +302,13 @@ static int nct6795d_led_suspend(struct device *dev)
 static int nct6795d_led_resume(struct device *dev)
 {
 	struct nct6795d_led *led = dev_get_drvdata(dev);
-	const u8 color_mask = BIT(RED) | BIT(GREEN) | BIT(BLUE);
 	int ret;
 
-	/* For some reason this needs to be done twice?? */
-	ret = nct6795d_led_commit(led, color_mask);
+	ret = nct6795d_led_setup(led);
 	if (ret)
 		return ret;
-	return nct6795d_led_commit(led, color_mask);
+
+	return nct6795d_led_commit(led, ALL_COLORS);
 }
 #endif
 
