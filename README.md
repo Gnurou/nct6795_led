@@ -1,18 +1,27 @@
 Linux Kernel Module for NCT6795D LEDs
 ====================================
 
-This is a quick kernel module for controlling the LEDs found on motherboards
+This is a basic kernel module for controlling the LEDs found on motherboards
 with the NCT6795D chip (and possibly others, not supported yet).
 
-Just build with `make && sudo make install && sudo depmod -a`, then run
+
+How to build
+------------
+
+Just do a `make && sudo make install && sudo depmod -a`.
+
+Usage and parameters
+--------------------
+
+Run
 
     # sudo modprobe leds_nct6795d
 
-This will create led devices under `/sys/class/leds/nct6795d:*`, one per red,
-green, and blue component. The led devices support intensity in the [0-15]
-range.
+To insert the module. This should create led devices under
+`/sys/class/leds/nct6795d:*`, one per red, green, and blue component. Each
+device supports intensity in the [0-15] range.
 
-The module also takes parameters to set the LEDs initial value, e.g.
+The module can also take parameters to set the LEDs initial value, e.g.
 
     # sudo modprobe leds_nct6795d r=7, g=7, b=7
 
