@@ -5,7 +5,9 @@
  *
  * Driver to control the RGB interfaces found on some MSI motherboards.
  * This is for the most part a port of the MSI-RGB user-space program
- * (https://github.com/nagisa/msi-rgb.git) to the Linux kernel LED interface.
+ * by Simonas Kazlauskas (https://github.com/nagisa/msi-rgb.git) to the Linux
+ * kernel LED interface.
+ *
  * It is more limited than the original program due to limitations in the LED
  * interface. For now, only static displays of colors are possible.
  *
