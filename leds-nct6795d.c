@@ -184,12 +184,6 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 	if (ret)
 		return ret;
 
-	/* Check if RGB control enabled */
-	val = superio_inb(led->base_port, 0xe0);
-	if ((val & 0xe0) != 0xe0) {
-		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
-	}
-
 	/* Without this pulsing does not work? */
 	superio_select(led->base_port, 0x09);
 	val = superio_inb(led->base_port, 0x2c);
@@ -198,11 +192,12 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 
 	superio_select(led->base_port, NCT6775_RGB_BANK);
 
-	/* Check if RGB control enabled? */
+	/* Check if RGB control enabled */
 	val = superio_inb(led->base_port, 0xe0);
-	if ((val & 0xe0) != 0xe0)
+	if ((val & 0xe0) != 0xe0) {
 		/* TODO can be simplified to val | 0xe0 ? */
 		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
+	}
 
 	/* TODO program other registers to default values */
 
