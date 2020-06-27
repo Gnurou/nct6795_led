@@ -159,23 +159,15 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 static int nct6795d_led_setup(const struct nct6795d_led *led)
 {
 	int ret;
-	int val;
 
 	ret = superio_enter(led->base_port);
 	if (ret)
 		return ret;
 
-	/* Check if RGB control enabled */
-	val = superio_inb(led->base_port, 0xe0);
-	if ((val & 0xe0) != 0xe0) {
-		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
-	}
-
-	/* Without this pulsing does not work? */
-	superio_select(led->base_port, 0x09);
-	val = superio_inb(led->base_port, 0x2c);
-	if ((val & 0x10) != 0x10)
-		superio_outb(led->base_port, 0x2c, val | 0x10);
+	/*
+	 * TODO we can probably move some of the writes in commit here.
+	 * Experiment to find which ones are safe to move.
+	 */
 
 	superio_exit(led->base_port);
 	return 0;
