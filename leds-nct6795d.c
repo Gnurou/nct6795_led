@@ -199,7 +199,16 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
 	}
 
-	/* TODO program other registers to default values */
+	/* TODO have proper macros for these values */
+	/* disable/pulse/flash */
+	superio_outb(led->base_port, 0xe4, 0);
+
+	/* step duration */
+	superio_outb(led->base_port, 0xfe, 25);
+
+	/* fade-in/invert */
+	/* 0b1110000 | 0b00000010 */
+	superio_outb(led->base_port, 0xff, 0xe2);
 
 	dev_dbg(led->dev, "setting values: R=%d G=%d B=%d\n",
 		cdev[RED].brightness, cdev[GREEN].brightness,
