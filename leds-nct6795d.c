@@ -124,10 +124,17 @@ static int nct6795d_led_detect(u16 base_port)
 		return ret;
 
 	val = (superio_inb(base_port, SIO_REG_DEVID) << 8) |
-	      superio_inb(base_port, SIO_REG_DEVID + 1);
+	       superio_inb(base_port, SIO_REG_DEVID + 1);
 
-	if ((val & 0xfff8) != 0xd350)
+	switch (val & 0xfff0) {
+	case 0xd350: /* NCT6795 */
+	case 0xd450: /* NCT6797 */
+		ret = 0;
+		break;
+	default:
 		ret = -ENXIO;
+		break;
+	}
 
 	superio_exit(base_port);
 	return ret;
