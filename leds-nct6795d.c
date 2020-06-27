@@ -190,6 +190,7 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 	if ((val & 0x10) != 0x10)
 		superio_outb(led->base_port, 0x2c, val | 0x10);
 
+	/* Select the RGB (0x12) bank */
 	superio_select(led->base_port, NCT6775_RGB_BANK);
 
 	/* Check if RGB control enabled */
