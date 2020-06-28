@@ -159,25 +159,7 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 static int nct6795d_led_setup(const struct nct6795d_led *led)
 {
 	int ret;
-
-	ret = superio_enter(led->base_port);
-	if (ret)
-		return ret;
-
-	/*
-	 * TODO we can probably move some of the writes in commit here.
-	 * Experiment to find which ones are safe to move.
-	 */
-
-	superio_exit(led->base_port);
-	return 0;
-}
-
-static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
-{
-	int ret;
 	u16 val;
-	const struct led_classdev *cdev = led->cdev;
 
 	ret = superio_enter(led->base_port);
 	if (ret)
@@ -210,9 +192,25 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 	/* 0b1110000 | 0b00000010 */
 	superio_outb(led->base_port, 0xff, 0xe2);
 
+	superio_exit(led->base_port);
+	return 0;
+}
+
+static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
+{
+	const struct led_classdev *cdev = led->cdev;
+	int ret;
+
 	dev_dbg(led->dev, "setting values: R=%d G=%d B=%d\n",
 		cdev[RED].brightness, cdev[GREEN].brightness,
 		cdev[BLUE].brightness);
+
+	ret = superio_enter(led->base_port);
+	if (ret)
+		return ret;
+
+	/* Select the RGB (0x12) bank */
+	superio_select(led->base_port, NCT6775_RGB_BANK);
 
 	if (color_mask & BIT(RED))
 		nct6795d_led_commit_color(led, RED_CELL, cdev[RED].brightness);
