@@ -114,7 +114,12 @@ struct nct6795d_led {
 	struct led_classdev cdev[NUM_COLORS];
 };
 
-static int nct6795d_led_detect(u16 base_port)
+enum nct679x_chip {
+	NCT6795,
+	NCT6797,
+};
+
+static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 {
 	int ret;
 	u16 val;
@@ -127,9 +132,11 @@ static int nct6795d_led_detect(u16 base_port)
 	       superio_inb(base_port, SIO_REG_DEVID + 1);
 
 	switch (val & 0xfff0) {
-	case 0xd350: /* NCT6795 */
-	case 0xd450: /* NCT6797 */
-		ret = 0;
+	case 0xd350:
+		ret = NCT6795;
+		break;
+	case 0xd450:
+		ret = NCT6797;
 		break;
 	default:
 		ret = -ENXIO;
@@ -337,10 +344,9 @@ static int __init nct6795d_led_init(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(io_bases); i++) {
-		if (!nct6795d_led_detect(io_bases[i]))
+		if (nct6795d_led_detect(io_bases[i]) >= 0)
 			break;
 	}
-
 	if (i == ARRAY_SIZE(io_bases)) {
 		pr_err("failed to detect nct6795d chip\n");
 		return -ENXIO;
