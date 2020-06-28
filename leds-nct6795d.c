@@ -266,6 +266,7 @@ static void (*brightness_set[NUM_COLORS])(struct led_classdev *,
 static int nct6795d_led_probe(struct platform_device *pdev)
 {
 	struct nct6795d_led *led;
+	const struct resource *res;
 	int ret;
 	int i;
 
@@ -274,8 +275,12 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	led->dev = &pdev->dev;
-	/* TODO use resource in init function */
-	led->base_port = 0x4e;
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_REG, "io_base");
+	if (IS_ERR(res))
+		return PTR_ERR(res);
+
+	led->base_port = res->start;
 
 	for (i = 0; i < NUM_COLORS; i++) {
 		struct led_classdev *cdev = &led->cdev[i];
@@ -339,6 +344,10 @@ static struct platform_device *nct6795d_led_pdev = NULL;
 static int __init nct6795d_led_init(void)
 {
 	static const u16 io_bases[] = { 0x4e, 0x2e };
+	struct resource io_res = {
+		.name = "io_base",
+		.flags = IORESOURCE_REG,
+	};
 	int base_port;
 	int ret;
 	int i;
@@ -365,12 +374,19 @@ static int __init nct6795d_led_init(void)
 		goto error_pdev_alloc;
 	}
 
+	io_res.end = io_res.start = io_bases[i];
+	ret = platform_device_add_resources(nct6795d_led_pdev, &io_res, 1);
+	if (ret)
+		goto error_pdev_resource;
+
 	ret = platform_device_add(nct6795d_led_pdev);
 	if (ret)
-		goto error_pdev_alloc;
+		goto error_pdev_resource;
 
 	return 0;
 
+error_pdev_resource:
+	platform_device_del(nct6795d_led_pdev);
 error_pdev_alloc:
 	platform_driver_unregister(&nct6795d_led_driver);
 	return ret;
