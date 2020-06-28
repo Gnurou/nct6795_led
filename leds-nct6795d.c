@@ -140,22 +140,6 @@ static int nct6795d_led_detect(u16 base_port)
 	return ret;
 }
 
-static void nct6795d_led_commit_color(const struct nct6795d_led *led,
-				      size_t index,
-				      enum led_brightness brightness)
-{
-	int i;
-
-	/*
-	 * The 8 4-bit nibbles represent brightness intensity for each time
-	 * frame. We set them all to the same value.
-	 */
-	brightness = (brightness << 4) | brightness;
-	for (i = 0; i <= NUM_COLORS; i++) {
-		superio_outb(led->base_port, index + i, brightness);
-	}
-}
-
 static int nct6795d_led_setup(const struct nct6795d_led *led)
 {
 	int ret;
@@ -194,6 +178,22 @@ static int nct6795d_led_setup(const struct nct6795d_led *led)
 
 	superio_exit(led->base_port);
 	return 0;
+}
+
+static void nct6795d_led_commit_color(const struct nct6795d_led *led,
+				      size_t index,
+				      enum led_brightness brightness)
+{
+	int i;
+
+	/*
+	 * The 8 4-bit nibbles represent brightness intensity for each time
+	 * frame. We set them all to the same value.
+	 */
+	brightness = (brightness << 4) | brightness;
+	for (i = 0; i <= NUM_COLORS; i++) {
+		superio_outb(led->base_port, index + i, brightness);
+	}
 }
 
 static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
