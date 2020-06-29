@@ -167,10 +167,8 @@ static int nct6795d_led_setup(const struct nct6795d_led *led)
 
 	/* Check if RGB control enabled */
 	val = superio_inb(led->base_port, 0xe0);
-	if ((val & 0xe0) != 0xe0) {
-		/* TODO can be simplified to val | 0xe0 ? */
-		superio_outb(led->base_port, 0xe0, 0xe0 | (val & !0xe0));
-	}
+	if ((val & 0xe0) != 0xe0)
+		superio_outb(led->base_port, 0xe0, val | 0xe0);
 
 	/* TODO have proper macros for these values */
 	/* disable/pulse/flash */
