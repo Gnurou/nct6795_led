@@ -30,7 +30,7 @@
  *
  */
 
-#include <asm/io.h>
+#include <linux/io.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/ioport.h>
@@ -196,9 +196,8 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 	 * frame. We set them all to the same value.
 	 */
 	brightness = (brightness << 4) | brightness;
-	for (i = 0; i <= NUM_COLORS; i++) {
+	for (i = 0; i <= NUM_COLORS; i++)
 		superio_outb(led->base_port, index + i, brightness);
-	}
 }
 
 static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
@@ -337,7 +336,7 @@ static struct platform_driver nct6795d_led_driver = {
 	.probe = nct6795d_led_probe,
 };
 
-static struct platform_device *nct6795d_led_pdev = NULL;
+static struct platform_device *nct6795d_led_pdev;
 
 static int __init nct6795d_led_init(void)
 {
