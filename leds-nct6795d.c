@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 // Copyright (c) 2020 Alexandre Courbot <gnurou@gmail.com>
 /*
- * NCT6795D LED driver
+ * NCT6795D/NCT6797D LED driver
  *
  * Driver to control the RGB interfaces found on some MSI motherboards.
  * This is for the most part a port of the MSI-RGB user-space program
@@ -84,7 +84,8 @@ static inline void superio_exit(int ioreg)
 
 /* End copy from drivers/hwmon/nct6775.c */
 
-#define NCT6795D_NAME "nct6795d"
+#define NCT6795D_DEVICE_NAME "nct6795d"
+#define DEFAULT_STEP_DURATION 25
 
 #define NCT6795D_RGB_BANK 0x12
 
@@ -95,26 +96,31 @@ static inline void superio_exit(int ioreg)
 
 #define NCT6795D_PARAMS_0 0xe4
 /* Enable/disable LED overall */
-#define LED_ENABLE(e) ((e) ? 0x0 : 0x1)
+#define PARAMS_0_LED_ENABLE(e) ((e) ? 0x0 : 0x1)
 /* Enable/disable smooth pulsing */
-#define LED_PULSE_ENABLE(e) ((e) ? 0x08 : 0x0)
+#define PARAMS_0_LED_PULSE_ENABLE(e) ((e) ? 0x08 : 0x0)
 /* Duration between blinks (0 is always on) */
-#define BLINK_DURATION(x) ((x) & 0x07)
+#define PARAMS_0_BLINK_DURATION(x) ((x) & 0x07)
 
 #define NCT6795D_PARAMS_1 0xfe
 /* Lower part of step duration (9 bits) */
-#define STEP_DURATION_LOW(s) ((s) & 0xff)
-#define DEFAULT_STEP_DURATION 25
+#define PARAMS_1_STEP_DURATION_LOW(s) ((s) & 0xff)
 
 #define NCT6795D_PARAMS_2 0xff
 /* Enable fade-in effect for specified primitive */
-#define FADE_COLOR(r, g, b) (0xe0 ^ (((r) ? 0x80 : 0x0) | ((g) ? 0x40 : 0x0) | ((b) ? 0x20 : 0x0)))
+#define PARAMS_2_FADE_COLOR(r, g, b) (0xe0 ^ (	\
+	((r) ? 0x80 : 0x0) |			\
+	((g) ? 0x40 : 0x0) |			\
+	((b) ? 0x20 : 0x0)))
 /* Whether the specified colors should be inverted */
-#define INVERT_COLOR(r, g, b) (((r) ? 0x10 : 0x0) | ((g) ? 0x08 : 0x0) | ((b) ? 0x04 : 0x0))
+#define PARAMS_2_INVERT_COLOR(r, g, b)	(	\
+	((r) ? 0x10 : 0x0) |			\
+	((g) ? 0x08 : 0x0) |			\
+	((b) ? 0x04 : 0x0))
 // Also disable board leds if the LED_DISABLE bit is set.
-#define DISABLE_BOARD_LED 0x02
+#define PARAMS_2_DISABLE_BOARD_LED 0x02
 // MSB (9th bit) of step duration
-#define STEP_DURATION_HIGH(s) (((s) >> 8) & 0x01)
+#define PARAMS_2_STEP_DURATION_HIGH(s) (((s) >> 8) & 0x01)
 
 enum { RED = 0, GREEN, BLUE, NUM_COLORS };
 #define ALL_COLORS (BIT(RED) | BIT(GREEN) | BIT(BLUE))
@@ -127,7 +133,7 @@ MODULE_PARM_DESC(g, "Initial green intensity (default 0)");
 module_param_named(b, init_vals[BLUE], byte, 0);
 MODULE_PARM_DESC(b, "Initial blue intensity (default 0)");
 
-static const char *led_names[NUM_COLORS] = {
+static const char *color_names[NUM_COLORS] = {
 	"red:",
 	"green:",
 	"blue:",
@@ -140,8 +146,13 @@ struct nct6795d_led {
 };
 
 enum nct679x_chip {
-	NCT6795,
-	NCT6797,
+	NCT6795D = 0,
+	NCT6797D,
+};
+
+const char *chip_names[] = {
+	"NCT6795D",
+	"NCT6797D",
 };
 
 static enum nct679x_chip nct6795d_led_detect(u16 base_port)
@@ -158,10 +169,10 @@ static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 
 	switch (val & 0xfff0) {
 	case 0xd350:
-		ret = NCT6795;
+		ret = NCT6795D;
 		break;
 	case 0xd450:
-		ret = NCT6797;
+		ret = NCT6797D;
 		break;
 	default:
 		ret = -ENXIO;
@@ -200,36 +211,36 @@ static int nct6795d_led_setup(const struct nct6795d_led *led)
 	 * are not supported by the LED API at the moment.
 	 */
 	superio_outb(led->base_port, NCT6795D_PARAMS_0,
-		     LED_ENABLE(true) |
-		     LED_PULSE_ENABLE(false) |
-		     BLINK_DURATION(0));
+		     PARAMS_0_LED_ENABLE(true) |
+		     PARAMS_0_LED_PULSE_ENABLE(false) |
+		     PARAMS_0_BLINK_DURATION(0));
 
 	superio_outb(led->base_port, NCT6795D_PARAMS_1,
-		     STEP_DURATION_LOW(DEFAULT_STEP_DURATION));
+		     PARAMS_1_STEP_DURATION_LOW(DEFAULT_STEP_DURATION));
 
 	superio_outb(led->base_port, NCT6795D_PARAMS_2,
-		     FADE_COLOR(false, false, false) |
-		     INVERT_COLOR(false, false, false) |
-		     DISABLE_BOARD_LED |
-		     STEP_DURATION_HIGH(DEFAULT_STEP_DURATION));
+		     PARAMS_2_FADE_COLOR(false, false, false) |
+		     PARAMS_2_INVERT_COLOR(false, false, false) |
+		     PARAMS_2_DISABLE_BOARD_LED |
+		     PARAMS_2_STEP_DURATION_HIGH(DEFAULT_STEP_DURATION));
 
 	superio_exit(led->base_port);
 	return 0;
 }
 
 static void nct6795d_led_commit_color(const struct nct6795d_led *led,
-				      size_t index,
+				      size_t color_cell,
 				      enum led_brightness brightness)
 {
 	int i;
-
 	/*
 	 * The 8 4-bit nibbles represent brightness intensity for each time
-	 * frame. We set them all to the same value.
+	 * frame. We set them all to the same value to get a constant color.
 	 */
-	brightness = (brightness << 4) | brightness;
-	for (i = 0; i <= NUM_COLORS; i++)
-		superio_outb(led->base_port, index + i, brightness);
+	u8 b = (brightness << 4) | brightness;
+
+	for (i = 0; i < 4; i++)
+		superio_outb(led->base_port, color_cell + i, b);
 }
 
 static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
@@ -315,8 +326,8 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 		struct led_classdev *cdev = &led->cdev[i];
 		struct led_init_data init_data = {};
 
-		init_data.devicename = NCT6795D_NAME;
-		init_data.default_label = led_names[i];
+		init_data.devicename = NCT6795D_DEVICE_NAME;
+		init_data.default_label = color_names[i];
 
 		cdev->brightness = init_vals[i];
 		cdev->max_brightness = 0xf;
@@ -377,12 +388,13 @@ static int __init nct6795d_led_init(void)
 		.name = "io_base",
 		.flags = IORESOURCE_REG,
 	};
-	int base_port;
+	enum nct679x_chip detected_chip;
 	int ret;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(io_bases); i++) {
-		if (nct6795d_led_detect(io_bases[i]) >= 0)
+		detected_chip = nct6795d_led_detect(io_bases[i]);
+		if (detected_chip >= 0)
 			break;
 	}
 	if (i == ARRAY_SIZE(io_bases)) {
@@ -390,14 +402,14 @@ static int __init nct6795d_led_init(void)
 		return -ENXIO;
 	}
 
-	base_port = io_bases[i];
-	pr_info("found nct6795d chip at address 0x%x\n", base_port);
+	pr_info("%s: found %s chip at address 0x%x\n", KBUILD_MODNAME,
+		chip_names[detected_chip], io_bases[i]);
 
 	ret = platform_driver_register(&nct6795d_led_driver);
 	if (ret)
 		return ret;
 
-	nct6795d_led_pdev = platform_device_alloc(NCT6795D_NAME "_led", 0);
+	nct6795d_led_pdev = platform_device_alloc(NCT6795D_DEVICE_NAME "_led", 0);
 	if (!nct6795d_led_pdev) {
 		ret = -ENOMEM;
 		goto error_pdev_alloc;
