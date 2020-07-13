@@ -40,10 +40,6 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
-#define NCT6795D_NAME "nct6795d"
-
-#define NCT6775_RGB_BANK 0x12
-
 /* Copied from drivers/hwmon/nct6775.c */
 
 #define SIO_REG_LDSEL 0x07 /* Logical device select */
@@ -88,9 +84,37 @@ static inline void superio_exit(int ioreg)
 
 /* End copy from drivers/hwmon/nct6775.c */
 
-#define RED_CELL 0xf0
-#define GREEN_CELL 0xf4
-#define BLUE_CELL 0xf8
+#define NCT6795D_NAME "nct6795d"
+
+#define NCT6795D_RGB_BANK 0x12
+
+/* Color registers */
+#define NCT6795D_RED_CELL 0xf0
+#define NCT6795D_GREEN_CELL 0xf4
+#define NCT6795D_BLUE_CELL 0xf8
+
+#define NCT6795D_PARAMS_0 0xe4
+/* Enable/disable LED overall */
+#define LED_ENABLE(e) ((e) ? 0x0 : 0x1)
+/* Enable/disable smooth pulsing */
+#define LED_PULSE_ENABLE(e) ((e) ? 0x08 : 0x0)
+/* Duration between blinks (0 is always on) */
+#define BLINK_DURATION(x) ((x) & 0x07)
+
+#define NCT6795D_PARAMS_1 0xfe
+/* Lower part of step duration (9 bits) */
+#define STEP_DURATION_LOW(s) ((s) & 0xff)
+#define DEFAULT_STEP_DURATION 25
+
+#define NCT6795D_PARAMS_2 0xff
+/* Enable fade-in effect for specified primitive */
+#define FADE_COLOR(r, g, b) (0xe0 ^ (((r) ? 0x80 : 0x0) | ((g) ? 0x40 : 0x0) | ((b) ? 0x20 : 0x0)))
+/* Whether the specified colors should be inverted */
+#define INVERT_COLOR(r, g, b) (((r) ? 0x10 : 0x0) | ((g) ? 0x08 : 0x0) | ((b) ? 0x04 : 0x0))
+// Also disable board leds if the LED_DISABLE bit is set.
+#define DISABLE_BOARD_LED 0x02
+// MSB (9th bit) of step duration
+#define STEP_DURATION_HIGH(s) (((s) >> 8) & 0x01)
 
 enum { RED = 0, GREEN, BLUE, NUM_COLORS };
 #define ALL_COLORS (BIT(RED) | BIT(GREEN) | BIT(BLUE))
@@ -163,24 +187,31 @@ static int nct6795d_led_setup(const struct nct6795d_led *led)
 	if ((val & 0x10) != 0x10)
 		superio_outb(led->base_port, 0x2c, val | 0x10);
 
-	/* Select the RGB (0x12) bank */
-	superio_select(led->base_port, NCT6775_RGB_BANK);
+	superio_select(led->base_port, NCT6795D_RGB_BANK);
 
 	/* Check if RGB control enabled */
 	val = superio_inb(led->base_port, 0xe0);
 	if ((val & 0xe0) != 0xe0)
 		superio_outb(led->base_port, 0xe0, val | 0xe0);
 
-	/* TODO have proper macros for these values */
-	/* disable/pulse/flash */
-	superio_outb(led->base_port, 0xe4, 0);
+	/*
+	 * Set some static parameters: led enabled, no pulse, no blink,
+	 * default step duration, no fading, no inversion. These fancy features
+	 * are not supported by the LED API at the moment.
+	 */
+	superio_outb(led->base_port, NCT6795D_PARAMS_0,
+		     LED_ENABLE(true) |
+		     LED_PULSE_ENABLE(false) |
+		     BLINK_DURATION(0));
 
-	/* step duration */
-	superio_outb(led->base_port, 0xfe, 25);
+	superio_outb(led->base_port, NCT6795D_PARAMS_1,
+		     STEP_DURATION_LOW(DEFAULT_STEP_DURATION));
 
-	/* fade-in/invert */
-	/* 0b1110000 | 0b00000010 */
-	superio_outb(led->base_port, 0xff, 0xe2);
+	superio_outb(led->base_port, NCT6795D_PARAMS_2,
+		     FADE_COLOR(false, false, false) |
+		     INVERT_COLOR(false, false, false) |
+		     DISABLE_BOARD_LED |
+		     STEP_DURATION_HIGH(DEFAULT_STEP_DURATION));
 
 	superio_exit(led->base_port);
 	return 0;
@@ -214,16 +245,16 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 	if (ret)
 		return ret;
 
-	/* Select the RGB (0x12) bank */
-	superio_select(led->base_port, NCT6775_RGB_BANK);
+	superio_select(led->base_port, NCT6795D_RGB_BANK);
 
 	if (color_mask & BIT(RED))
-		nct6795d_led_commit_color(led, RED_CELL, cdev[RED].brightness);
+		nct6795d_led_commit_color(led, NCT6795D_RED_CELL,
+					  cdev[RED].brightness);
 	if (color_mask & BIT(GREEN))
-		nct6795d_led_commit_color(led, GREEN_CELL,
+		nct6795d_led_commit_color(led, NCT6795D_GREEN_CELL,
 					  cdev[GREEN].brightness);
 	if (color_mask & BIT(BLUE))
-		nct6795d_led_commit_color(led, BLUE_CELL,
+		nct6795d_led_commit_color(led, NCT6795D_BLUE_CELL,
 					  cdev[BLUE].brightness);
 
 	superio_exit(led->base_port);
