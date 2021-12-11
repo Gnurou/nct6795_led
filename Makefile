@@ -12,4 +12,4 @@ install:
 	cp leds-nct6795d.ko /lib/modules/$(KERNEL_VERSION)/extramodules/
 
 compile_commands.json: clean
-	bear make
+	bear -- make
