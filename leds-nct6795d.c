@@ -109,15 +109,11 @@ static inline void superio_exit(int ioreg)
 
 #define NCT6795D_PARAMS_2 0xff
 /* Enable fade-in effect for specified primitive */
-#define PARAMS_2_FADE_COLOR(r, g, b) (0xe0 ^ (	\
-	((r) ? 0x80 : 0x0) |			\
-	((g) ? 0x40 : 0x0) |			\
-	((b) ? 0x20 : 0x0)))
+#define PARAMS_2_FADE_COLOR(r, g, b)                                           \
+	(0xe0 ^ (((r) ? 0x80 : 0x0) | ((g) ? 0x40 : 0x0) | ((b) ? 0x20 : 0x0)))
 /* Whether the specified colors should be inverted */
-#define PARAMS_2_INVERT_COLOR(r, g, b)	(	\
-	((r) ? 0x10 : 0x0) |			\
-	((g) ? 0x08 : 0x0) |			\
-	((b) ? 0x04 : 0x0))
+#define PARAMS_2_INVERT_COLOR(r, g, b)                                         \
+	(((r) ? 0x10 : 0x0) | ((g) ? 0x08 : 0x0) | ((b) ? 0x04 : 0x0))
 /* Disable board leds if the LED_DISABLE bit is set */
 #define PARAMS_2_DISABLE_BOARD_LED 0x02
 /* MSB (9th bit) of step duration */
@@ -160,7 +156,7 @@ static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 		return ret;
 
 	val = (superio_inb(base_port, SIO_REG_DEVID) << 8) |
-	       superio_inb(base_port, SIO_REG_DEVID + 1);
+	      superio_inb(base_port, SIO_REG_DEVID + 1);
 
 	switch (val & 0xfff0) {
 	case 0xd350:
@@ -207,17 +203,17 @@ static int nct6795d_led_setup(const struct nct6795d_led *led)
 	 */
 	superio_outb(led->base_port, NCT6795D_PARAMS_0,
 		     PARAMS_0_LED_ENABLE(true) |
-		     PARAMS_0_LED_PULSE_ENABLE(false) |
-		     PARAMS_0_BLINK_DURATION(0));
+			     PARAMS_0_LED_PULSE_ENABLE(false) |
+			     PARAMS_0_BLINK_DURATION(0));
 
 	superio_outb(led->base_port, NCT6795D_PARAMS_1,
 		     PARAMS_1_STEP_DURATION_LOW(DEFAULT_STEP_DURATION));
 
 	superio_outb(led->base_port, NCT6795D_PARAMS_2,
 		     PARAMS_2_FADE_COLOR(false, false, false) |
-		     PARAMS_2_INVERT_COLOR(false, false, false) |
-		     PARAMS_2_DISABLE_BOARD_LED |
-		     PARAMS_2_STEP_DURATION_HIGH(DEFAULT_STEP_DURATION));
+			PARAMS_2_INVERT_COLOR(false, false, false) |
+			PARAMS_2_DISABLE_BOARD_LED |
+			PARAMS_2_STEP_DURATION_HIGH(DEFAULT_STEP_DURATION));
 
 	superio_exit(led->base_port);
 	return 0;
@@ -229,7 +225,7 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 {
 	int i;
 	/*
-	 * The 8 4-bit nibbles represent brightness intensity for each time
+	 * These 8 4-bit nibbles represent brightness intensity for each time
 	 * frame. We set them all to the same value to get a constant color.
 	 */
 	const u8 b = (brightness << 4) | brightness;
@@ -253,10 +249,12 @@ static int nct6795d_led_commit(const struct nct6795d_led *led)
 
 	superio_select(led->base_port, NCT6795D_RGB_BANK);
 
-	// TODO set all colors at once
-	nct6795d_led_commit_color(led, NCT6795D_RED_CELL, subled[RED].brightness);
-	nct6795d_led_commit_color(led, NCT6795D_GREEN_CELL, subled[GREEN].brightness);
-	nct6795d_led_commit_color(led, NCT6795D_BLUE_CELL, subled[BLUE].brightness);
+	nct6795d_led_commit_color(led, NCT6795D_RED_CELL,
+				  subled[RED].brightness);
+	nct6795d_led_commit_color(led, NCT6795D_GREEN_CELL,
+				  subled[GREEN].brightness);
+	nct6795d_led_commit_color(led, NCT6795D_BLUE_CELL,
+				  subled[BLUE].brightness);
 
 	superio_exit(led->base_port);
 	return 0;
@@ -309,8 +307,8 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 	led->mc_cdev.led_cdev.brightness = led->mc_cdev.led_cdev.max_brightness;
 	led->mc_cdev.led_cdev.brightness_set = nct6795d_led_brightness_set;
 
-	ret = devm_led_classdev_multicolor_register_ext(&pdev->dev, &led->mc_cdev,
-					     NULL);
+	ret = devm_led_classdev_multicolor_register_ext(&pdev->dev,
+							&led->mc_cdev, NULL);
 	if (ret)
 		return ret;
 
@@ -320,7 +318,8 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	nct6795d_led_brightness_set(&led->mc_cdev.led_cdev, led->mc_cdev.led_cdev.brightness);
+	nct6795d_led_brightness_set(&led->mc_cdev.led_cdev,
+				    led->mc_cdev.led_cdev.brightness);
 
 	return 0;
 }
@@ -385,13 +384,15 @@ static int __init nct6795d_led_init(void)
 	if (ret)
 		return ret;
 
-	nct6795d_led_pdev = platform_device_alloc(NCT6795D_DEVICE_NAME "_led", 0);
+	nct6795d_led_pdev =
+		platform_device_alloc(NCT6795D_DEVICE_NAME "_led", 0);
 	if (!nct6795d_led_pdev) {
 		ret = -ENOMEM;
 		goto error_pdev_alloc;
 	}
 
-	io_res.end = io_res.start = io_bases[i];
+	io_res.start = io_bases[i];
+	io_res.end = io_res.start;
 	ret = platform_device_add_resources(nct6795d_led_pdev, &io_res, 1);
 	if (ret)
 		goto error_pdev_resource;
