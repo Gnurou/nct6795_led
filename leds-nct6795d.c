@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0+
-// Copyright (c) 2020 Alexandre Courbot <gnurou@gmail.com>
+// Copyright (c) 2021 Alexandre Courbot <gnurou@gmail.com>
 /*
  * NCT6795D/NCT6797D LED driver
  *
@@ -9,7 +9,7 @@
  * kernel LED interface.
  *
  * It is more limited than the original program due to limitations in the LED
- * interface. For now, only static displays of colors are possible.
+ * interface. For now, only static colors are possible.
  *
  * Supported motherboards (a per MSI-RGB's README):
  * B350 MORTAR ARCTIC
@@ -37,6 +37,7 @@
 #include <linux/ioport.h>
 #include <linux/kernel.h>
 #include <linux/leds.h>
+#include <linux/led-class-multicolor.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
@@ -99,11 +100,11 @@ static inline void superio_exit(int ioreg)
 #define PARAMS_0_LED_ENABLE(e) ((e) ? 0x0 : 0x1)
 /* Enable/disable smooth pulsing */
 #define PARAMS_0_LED_PULSE_ENABLE(e) ((e) ? 0x08 : 0x0)
-/* Duration between blinks (0 is always on) */
+/* Duration between blinks (0 means always on) */
 #define PARAMS_0_BLINK_DURATION(x) ((x) & 0x07)
 
 #define NCT6795D_PARAMS_1 0xfe
-/* Lower part of step duration (9 bits) */
+/* Lower part of step duration (8 out of 9 bits) */
 #define PARAMS_1_STEP_DURATION_LOW(s) ((s) & 0xff)
 
 #define NCT6795D_PARAMS_2 0xff
@@ -117,13 +118,12 @@ static inline void superio_exit(int ioreg)
 	((r) ? 0x10 : 0x0) |			\
 	((g) ? 0x08 : 0x0) |			\
 	((b) ? 0x04 : 0x0))
-// Also disable board leds if the LED_DISABLE bit is set.
+/* Disable board leds if the LED_DISABLE bit is set */
 #define PARAMS_2_DISABLE_BOARD_LED 0x02
-// MSB (9th bit) of step duration
+/* MSB (9th bit) of step duration */
 #define PARAMS_2_STEP_DURATION_HIGH(s) (((s) >> 8) & 0x01)
 
 enum { RED = 0, GREEN, BLUE, NUM_COLORS };
-#define ALL_COLORS (BIT(RED) | BIT(GREEN) | BIT(BLUE))
 
 static u8 init_vals[NUM_COLORS];
 module_param_named(r, init_vals[RED], byte, 0);
@@ -133,16 +133,11 @@ MODULE_PARM_DESC(g, "Initial green intensity (default 0)");
 module_param_named(b, init_vals[BLUE], byte, 0);
 MODULE_PARM_DESC(b, "Initial blue intensity (default 0)");
 
-static const char *color_names[NUM_COLORS] = {
-	"red:",
-	"green:",
-	"blue:",
-};
-
 struct nct6795d_led {
 	struct device *dev;
 	u16 base_port;
-	struct led_classdev cdev[NUM_COLORS];
+	struct led_classdev_mc mc_cdev;
+	struct mc_subled subled[NUM_COLORS];
 };
 
 enum nct679x_chip {
@@ -237,20 +232,20 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 	 * The 8 4-bit nibbles represent brightness intensity for each time
 	 * frame. We set them all to the same value to get a constant color.
 	 */
-	u8 b = (brightness << 4) | brightness;
+	const u8 b = (brightness << 4) | brightness;
 
 	for (i = 0; i < 4; i++)
 		superio_outb(led->base_port, color_cell + i, b);
 }
 
-static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
+static int nct6795d_led_commit(const struct nct6795d_led *led)
 {
-	const struct led_classdev *cdev = led->cdev;
+	const struct mc_subled *subled = led->subled;
 	int ret;
 
 	dev_dbg(led->dev, "setting values: R=%d G=%d B=%d\n",
-		cdev[RED].brightness, cdev[GREEN].brightness,
-		cdev[BLUE].brightness);
+		subled[RED].brightness, subled[GREEN].brightness,
+		subled[BLUE].brightness);
 
 	ret = superio_enter(led->base_port);
 	if (ret)
@@ -258,57 +253,32 @@ static int nct6795d_led_commit(const struct nct6795d_led *led, u8 color_mask)
 
 	superio_select(led->base_port, NCT6795D_RGB_BANK);
 
-	if (color_mask & BIT(RED))
-		nct6795d_led_commit_color(led, NCT6795D_RED_CELL,
-					  cdev[RED].brightness);
-	if (color_mask & BIT(GREEN))
-		nct6795d_led_commit_color(led, NCT6795D_GREEN_CELL,
-					  cdev[GREEN].brightness);
-	if (color_mask & BIT(BLUE))
-		nct6795d_led_commit_color(led, NCT6795D_BLUE_CELL,
-					  cdev[BLUE].brightness);
+	// TODO set all colors at once
+	nct6795d_led_commit_color(led, NCT6795D_RED_CELL, subled[RED].brightness);
+	nct6795d_led_commit_color(led, NCT6795D_GREEN_CELL, subled[GREEN].brightness);
+	nct6795d_led_commit_color(led, NCT6795D_BLUE_CELL, subled[BLUE].brightness);
 
 	superio_exit(led->base_port);
 	return 0;
 }
 
-static void nct6795d_led_brightness_set_red(struct led_classdev *cdev,
-					    enum led_brightness value)
+static void nct6795d_led_brightness_set(struct led_classdev *cdev,
+					enum led_brightness brightness)
 {
-	const struct nct6795d_led *led =
-		container_of(cdev, struct nct6795d_led, cdev[RED]);
-	nct6795d_led_commit(led, BIT(RED));
-}
+	struct led_classdev_mc *mc_cdev = lcdev_to_mccdev(cdev);
+	struct nct6795d_led *led =
+		container_of(mc_cdev, struct nct6795d_led, mc_cdev);
 
-static void nct6795d_led_brightness_set_green(struct led_classdev *cdev,
-					      enum led_brightness value)
-{
-	const struct nct6795d_led *led =
-		container_of(cdev, struct nct6795d_led, cdev[GREEN]);
-	nct6795d_led_commit(led, BIT(GREEN));
-}
+	led_mc_calc_color_components(mc_cdev, brightness);
 
-static void nct6795d_led_brightness_set_blue(struct led_classdev *cdev,
-					     enum led_brightness value)
-{
-	const struct nct6795d_led *led =
-		container_of(cdev, struct nct6795d_led, cdev[BLUE]);
-	nct6795d_led_commit(led, BIT(BLUE));
+	nct6795d_led_commit(led);
 }
-
-static void (*brightness_set[NUM_COLORS])(struct led_classdev *,
-					  enum led_brightness) = {
-	&nct6795d_led_brightness_set_red,
-	&nct6795d_led_brightness_set_green,
-	&nct6795d_led_brightness_set_blue,
-};
 
 static int nct6795d_led_probe(struct platform_device *pdev)
 {
 	struct nct6795d_led *led;
 	const struct resource *res;
 	int ret;
-	int i;
 
 	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
 	if (!led)
@@ -322,21 +292,27 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 
 	led->base_port = res->start;
 
-	for (i = 0; i < NUM_COLORS; i++) {
-		struct led_classdev *cdev = &led->cdev[i];
-		struct led_init_data init_data = {};
+	led->subled[RED].color_index = LED_COLOR_ID_RED;
+	led->subled[RED].channel = 0;
+	led->subled[RED].intensity = init_vals[RED];
+	led->subled[GREEN].color_index = LED_COLOR_ID_GREEN;
+	led->subled[GREEN].channel = 1;
+	led->subled[GREEN].intensity = init_vals[GREEN];
+	led->subled[BLUE].color_index = LED_COLOR_ID_BLUE;
+	led->subled[BLUE].channel = 2;
+	led->subled[BLUE].intensity = init_vals[BLUE];
 
-		init_data.devicename = NCT6795D_DEVICE_NAME;
-		init_data.default_label = color_names[i];
+	led->mc_cdev.subled_info = led->subled;
+	led->mc_cdev.num_colors = NUM_COLORS;
+	led->mc_cdev.led_cdev.name = NCT6795D_DEVICE_NAME;
+	led->mc_cdev.led_cdev.max_brightness = 0xf;
+	led->mc_cdev.led_cdev.brightness = led->mc_cdev.led_cdev.max_brightness;
+	led->mc_cdev.led_cdev.brightness_set = nct6795d_led_brightness_set;
 
-		cdev->brightness = init_vals[i];
-		cdev->max_brightness = 0xf;
-		cdev->brightness_set = brightness_set[i];
-		ret = devm_led_classdev_register_ext(&pdev->dev, cdev,
-						     &init_data);
-		if (ret)
-			return ret;
-	}
+	ret = devm_led_classdev_multicolor_register_ext(&pdev->dev, &led->mc_cdev,
+					     NULL);
+	if (ret)
+		return ret;
 
 	dev_set_drvdata(&pdev->dev, led);
 
@@ -344,7 +320,7 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	nct6795d_led_commit(led, ALL_COLORS);
+	nct6795d_led_brightness_set(&led->mc_cdev.led_cdev, led->mc_cdev.led_cdev.brightness);
 
 	return 0;
 }
@@ -364,7 +340,7 @@ static int nct6795d_led_resume(struct device *dev)
 	if (ret)
 		return ret;
 
-	return nct6795d_led_commit(led, ALL_COLORS);
+	return nct6795d_led_commit(led);
 }
 #endif
 
