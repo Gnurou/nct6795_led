@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0+
-// Copyright (c) 2021 Alexandre Courbot <gnurou@gmail.com>
 /*
  * NCT6795D/NCT6797D LED driver
+ *
+ * Copyright (c) 2021 Alexandre Courbot <gnurou@gmail.com>
  *
  * Driver to control the RGB interfaces found on some MSI motherboards.
  * This is for the most part a port of the MSI-RGB user-space program
@@ -9,7 +10,7 @@
  * kernel LED interface.
  *
  * It is more limited than the original program due to limitations in the LED
- * interface. For now, only static colors are possible.
+ * interface. For now, only static colors are supported.
  *
  * Supported motherboards (a per MSI-RGB's README):
  * B350 MORTAR ARCTIC
@@ -41,7 +42,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 
-/* Copied from drivers/hwmon/nct6775.c */
+/* Adapted from drivers/hwmon/nct6775.c */
 
 #define SIO_REG_LDSEL 0x07 /* Logical device select */
 #define SIO_REG_DEVID 0x20 /* Device ID (2 bytes) */
@@ -83,7 +84,7 @@ static inline void superio_exit(int ioreg)
 	release_region(ioreg, 2);
 }
 
-/* End copy from drivers/hwmon/nct6775.c */
+/* End adapted from drivers/hwmon/nct6775.c */
 
 #define NCT6795D_DEVICE_NAME "nct6795d"
 #define DEFAULT_STEP_DURATION 25
@@ -141,11 +142,15 @@ enum nct679x_chip {
 	NCT6797D,
 };
 
-const char *chip_names[] = {
+static const char * const chip_names[] = {
 	"NCT6795D",
 	"NCT6797D",
 };
 
+/*
+ * Return the detected chip or an error code. If no chip was detected, -ENXIO
+ * is returned.
+ */
 static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 {
 	int ret;
@@ -174,6 +179,10 @@ static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 	return ret;
 }
 
+/*
+ * Setup the LEDs for use with the LED interface. I.e, no pulsing or other fancy
+ * features, only static colors.
+ */
 static int nct6795d_led_setup(const struct nct6795d_led *led)
 {
 	int ret;
@@ -219,6 +228,9 @@ static int nct6795d_led_setup(const struct nct6795d_led *led)
 	return 0;
 }
 
+/*
+ * Commit one color to the hardware.
+ */
 static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 				      size_t color_cell,
 				      enum led_brightness brightness)
@@ -234,6 +246,9 @@ static void nct6795d_led_commit_color(const struct nct6795d_led *led,
 		superio_outb(led->base_port, color_cell + i, b);
 }
 
+/*
+ * Commit all colors to the hardware.
+ */
 static int nct6795d_led_commit(const struct nct6795d_led *led)
 {
 	const struct mc_subled *subled = led->subled;
@@ -260,6 +275,9 @@ static int nct6795d_led_commit(const struct nct6795d_led *led)
 	return 0;
 }
 
+/*
+ * led_classdev's brightness_set hook.
+ */
 static void nct6795d_led_brightness_set(struct led_classdev *cdev,
 					enum led_brightness brightness)
 {
@@ -373,11 +391,11 @@ static int __init nct6795d_led_init(void)
 			break;
 	}
 	if (i == ARRAY_SIZE(io_bases)) {
-		pr_err("failed to detect nct6795d chip\n");
+		pr_err(KBUILD_MODNAME ": no supported chip detected\n");
 		return -ENXIO;
 	}
 
-	pr_info("%s: found %s chip at address 0x%x\n", KBUILD_MODNAME,
+	pr_info(KBUILD_MODNAME ": found %s chip at address 0x%x\n",
 		chip_names[detected_chip], io_bases[i]);
 
 	ret = platform_driver_register(&nct6795d_led_driver);
