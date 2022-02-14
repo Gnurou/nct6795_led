@@ -140,8 +140,8 @@ static const char * const chip_names[] = {
 };
 
 /*
- * Return the detected chip or an error code. If no chip was detected, -ENXIO
- * is returned.
+ * Return the detected chip (NCTLEDS_CHIP_*), or -ENODEV if no chip could be
+ * detected.
  */
 static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 {
@@ -163,7 +163,7 @@ static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 		ret = NCT6797D;
 		break;
 	default:
-		ret = -ENXIO;
+		ret = -ENODEV;
 		break;
 	}
 
@@ -384,7 +384,7 @@ static int __init nct6795d_led_init(void)
 	}
 	if (i == ARRAY_SIZE(io_bases)) {
 		pr_err(KBUILD_MODNAME ": no supported chip detected\n");
-		return -ENXIO;
+		return -ENODEV;
 	}
 
 	pr_info(KBUILD_MODNAME ": found %s chip at address 0x%x\n",
