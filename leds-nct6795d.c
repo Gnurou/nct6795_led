@@ -129,10 +129,8 @@ struct nct6795d_led {
 	struct mc_subled subled[NUM_COLORS];
 };
 
-enum nct679x_chip {
-	NCT6795D = 0,
-	NCT6797D,
-};
+#define NCTLEDS_CHIP_NCT6795D 0
+#define NCTLEDS_CHIP_NCT6797D 1
 
 static const char * const chip_names[] = {
 	"NCT6795D",
@@ -143,7 +141,7 @@ static const char * const chip_names[] = {
  * Return the detected chip (NCTLEDS_CHIP_*), or -ENODEV if no chip could be
  * detected.
  */
-static enum nct679x_chip nct6795d_led_detect(u16 base_port)
+static int nct6795d_led_detect(u16 base_port)
 {
 	int ret;
 	u16 val;
@@ -157,10 +155,10 @@ static enum nct679x_chip nct6795d_led_detect(u16 base_port)
 
 	switch (val & 0xfff0) {
 	case 0xd350:
-		ret = NCT6795D;
+		ret = NCTLEDS_CHIP_NCT6795D;
 		break;
 	case 0xd450:
-		ret = NCT6797D;
+		ret = NCTLEDS_CHIP_NCT6797D;
 		break;
 	default:
 		ret = -ENODEV;
@@ -373,7 +371,7 @@ static int __init nct6795d_led_init(void)
 		.name = "io_base",
 		.flags = IORESOURCE_REG,
 	};
-	enum nct679x_chip detected_chip;
+	int detected_chip;
 	int ret;
 	int i;
 
