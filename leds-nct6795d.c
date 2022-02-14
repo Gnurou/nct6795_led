@@ -122,14 +122,6 @@ static void superio_exit(int ioreg)
 
 enum { RED = 0, GREEN, BLUE, NUM_COLORS };
 
-static u8 init_vals[NUM_COLORS];
-module_param_named(r, init_vals[RED], byte, 0);
-MODULE_PARM_DESC(r, "Initial red intensity (default 0)");
-module_param_named(g, init_vals[GREEN], byte, 0);
-MODULE_PARM_DESC(g, "Initial green intensity (default 0)");
-module_param_named(b, init_vals[BLUE], byte, 0);
-MODULE_PARM_DESC(b, "Initial blue intensity (default 0)");
-
 struct nct6795d_led {
 	struct device *dev;
 	u16 base_port;
@@ -310,13 +302,13 @@ static int nct6795d_led_probe(struct platform_device *pdev)
 
 	led->subled[RED].color_index = LED_COLOR_ID_RED;
 	led->subled[RED].channel = 0;
-	led->subled[RED].intensity = init_vals[RED];
+	led->subled[RED].intensity = 0;
 	led->subled[GREEN].color_index = LED_COLOR_ID_GREEN;
 	led->subled[GREEN].channel = 1;
-	led->subled[GREEN].intensity = init_vals[GREEN];
+	led->subled[GREEN].intensity = 0;
 	led->subled[BLUE].color_index = LED_COLOR_ID_BLUE;
 	led->subled[BLUE].channel = 2;
-	led->subled[BLUE].intensity = init_vals[BLUE];
+	led->subled[BLUE].intensity = 0;
 
 	led->mc_cdev.subled_info = led->subled;
 	led->mc_cdev.num_colors = NUM_COLORS;
