@@ -65,7 +65,7 @@ static inline void superio_select(int ioreg, int ld)
 	outb(ld, ioreg + 1);
 }
 
-static inline int superio_enter(int ioreg)
+static int superio_enter(int ioreg)
 {
 	if (!request_muxed_region(ioreg, 2, "NCT6795D LED"))
 		return -EBUSY;
@@ -76,7 +76,7 @@ static inline int superio_enter(int ioreg)
 	return 0;
 }
 
-static inline void superio_exit(int ioreg)
+static void superio_exit(int ioreg)
 {
 	outb(0xaa, ioreg);
 	outb(0x02, ioreg);
