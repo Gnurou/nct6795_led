@@ -190,10 +190,9 @@ static int nct6795d_led_setup(const struct nct6795d_led *led)
 
 	superio_select(led->base_port, NCT6795D_RGB_BANK);
 
-	/* Check if RGB control enabled */
+	/* Enable RGB control */
 	val = superio_inb(led->base_port, 0xe0);
-	if ((val & 0xe0) != 0xe0)
-		superio_outb(led->base_port, 0xe0, val | 0xe0);
+	superio_outb(led->base_port, 0xe0, val | 0xe0);
 
 	/*
 	 * Set some static parameters: led enabled, no pulse, no blink,
